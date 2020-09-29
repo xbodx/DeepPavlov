@@ -25,7 +25,7 @@
       {
         "class_name": "wiki_parser",
         "id": "wiki_p",
-        "wiki_filename": "{DOWNLOADS_PATH}/wikidata/wikidata_test.pickle",
+        "wiki_filename": "{DOWNLOADS_PATH}/wikidata/wikidata.pickle",
         "file_format": "pickle",
         "lang": "@en"
       },
