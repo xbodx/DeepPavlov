@@ -90,7 +90,7 @@ class RelRankerBertInfer(Component, Serializable):
                         rels_labels_batch.append(candidate_rels)
                         answers_batch.append(candidate_answer)
                         confidences_batch.append(candidate_confidence)
-
+                
                 probas = self.ranker(questions_batch, rels_labels_batch)
                 probas = [proba[1] for proba in probas]
                 for j, (answer, confidence, rels_labels) in \
