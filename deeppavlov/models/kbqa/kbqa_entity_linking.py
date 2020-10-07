@@ -67,6 +67,7 @@ class KBEntityLinker(Component, Serializable):
                  lang: str = "en",
                  use_descriptions: bool = False,
                  include_mention: bool = False,
+                 num_entities_to_return: int = 5,
                  lemmatize: bool = False,
                  use_prefix_tree: bool = False,
                  **kwargs) -> None:
@@ -131,6 +132,7 @@ class KBEntityLinker(Component, Serializable):
         self.entity_ranker = entity_ranker
         self.use_descriptions = use_descriptions
         self.include_mention = include_mention
+        self.num_entities_to_return = num_entities_to_return
         if self.use_descriptions and self.entity_ranker is None:
             raise ValueError("No entity ranker is provided!")
 
@@ -200,7 +202,13 @@ class KBEntityLinker(Component, Serializable):
                     else:
                         context = ' '.join(context_tokens[:entity_pos[0]]+["[ENT]"] + context_tokens[entity_pos[-1]+1:])
                 entity_ids, confidences = self.link_entity(entity_substr, context)
-                entity_ids_list.append(entity_ids)
+                if self.num_entities_to_return == 1:
+                    if entity_ids:
+                        entity_ids_list.append(entity_ids[0])
+                    else:
+                        entity_ids_list.append("")
+                else:
+                    entity_ids_list.append(entity_ids[:self.num_entities_to_return])
                 confidences_list.append(confidences)
         entity_ids_batch.append(entity_ids_list)
         confidences_batch.append(confidences_list)

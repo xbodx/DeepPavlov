@@ -51,11 +51,24 @@ class WikiParser:
             self.document = load_pickle(wiki_path)
         else:
             raise ValueError("Unsupported file format")
+            
+    def __call__(self, what_return_batch: List[List[str]], query_seq_batch: List[List[List[str]]],
+                       filter_info_batch: List[List[Tuple[str]]] = None,
+                       order_info_batch: List[namedtuple] = None) -> List[List[List[str]]]:
+        if not filter_info_batch:
+            filter_info_batch = ["" for i in range(len(what_return_batch))]
+        if not order_info_batch:
+            order_info_batch = ["" for i in range(len(what_return_batch))]
+        combs_batch = []
+        for what_return, query_seq, filter_info, order_info in \
+            zip(what_return_batch, query_seq_batch, filter_info_batch, order_info_batch):
+            combs_batch.append(self.execute(what_return, query_seq, filter_info, order_info))
+        return combs_batch
 
-    def __call__(self, what_return: List[str],
+    def execute(self, what_return: List[str],
                  query_seq: List[List[str]],
-                 filter_info: List[Tuple[str]],
-                 order_info: namedtuple) -> List[List[str]]:
+                 filter_info: List[Tuple[str]] = None,
+                 order_info: namedtuple = None) -> List[List[str]]:
         """
             Let us consider an example of the question "What is the deepest lake in Russia?"
             with the corresponding SPARQL query            
@@ -119,7 +132,7 @@ class WikiParser:
                 for filter_elem, filter_value in filter_info:
                     combs = [comb for comb in combs if filter_value in comb[filter_elem]]
 
-            if order_info.variable is not None:
+            if order_info and order_info.variable is not None:
                 reverse = True if order_info.sorting_order == "desc" else False
                 sort_elem = order_info.variable
                 combs = sorted(combs, key=lambda x: float(x[sort_elem].split('^^')[0].strip('"')), reverse=reverse)
