@@ -14,11 +14,12 @@
 
 import itertools
 import re
-import time
 from logging import getLogger
 from typing import Tuple, List, Optional, Union, Dict, Any
 
 import nltk
+from whapi import search, get_html
+from bs4 import BeautifulSoup
 
 from deeppavlov.core.models.component import Component
 from deeppavlov.core.models.serializable import Serializable
@@ -114,7 +115,6 @@ class QueryGeneratorBase(Component, Serializable):
         for old, new in replace_tokens:
             question = question.replace(old, new)
 
-        tm1 = time.time()
         entities_from_template, types_from_template, rels_from_template, rel_dirs_from_template, \
         query_type_template, template_found = self.template_matcher(question, entities_from_ner)
         self.template_nums = [query_type_template]
@@ -123,18 +123,20 @@ class QueryGeneratorBase(Component, Serializable):
         log.debug(f"template_type {self.template_nums}")
 
         if entities_from_template or types_from_template:
-            tm1 = time.time()
-            entity_ids = self.get_entity_ids(entities_from_template, "entities", template_found, question)
-            type_ids = self.get_entity_ids(types_from_template, "types")
-            log.debug(f"entities_from_template {entities_from_template}")
-            log.debug(f"types_from_template {types_from_template}")
-            log.debug(f"rels_from_template {rels_from_template}")
-            log.debug(f"entity_ids {entity_ids}")
-            log.debug(f"type_ids {type_ids}")
+            if rels_from_template[0][0] == "PHOW":
+                how_to_content = self.find_answer_wikihow(entities_from_template[0])
+                candidate_outputs = [["PHOW", how_to_content, 1.0]]
+            else:
+                entity_ids = self.get_entity_ids(entities_from_template, "entities", template_found, question)
+                type_ids = self.get_entity_ids(types_from_template, "types")
+                log.debug(f"entities_from_template {entities_from_template}")
+                log.debug(f"types_from_template {types_from_template}")
+                log.debug(f"rels_from_template {rels_from_template}")
+                log.debug(f"entity_ids {entity_ids}")
+                log.debug(f"type_ids {type_ids}")
 
-            tm1 = time.time()
-            candidate_outputs = self.sparql_template_parser(question_sanitized, entity_ids, type_ids, rels_from_template,
-                                                            rel_dirs_from_template)
+                candidate_outputs = self.sparql_template_parser(question_sanitized, entity_ids, type_ids, rels_from_template,
+                                                                rel_dirs_from_template)
 
         if not candidate_outputs and entities_from_ner:
             log.debug(f"(__call__)entities_from_ner: {entities_from_ner}")
@@ -147,7 +149,6 @@ class QueryGeneratorBase(Component, Serializable):
             log.debug(f"(__call__)self.template_nums: {self.template_nums}")
             if not self.syntax_structure_known:
                 entity_ids = entity_ids[:3]
-            tm1 = time.time()
             candidate_outputs = self.sparql_template_parser(question_sanitized, entity_ids, type_ids)
         return candidate_outputs
 
@@ -228,3 +229,16 @@ class QueryGeneratorBase(Component, Serializable):
             ex_rels = self.rank_list_1
         rels_with_scores = self.rel_ranker.rank_rels(question, ex_rels)
         return rels_with_scores[:self.rels_to_leave]
+        
+    def find_answer_wikihow(self, howto_sentence: str) -> str:
+        howto_content = ""
+        search_results = search(howto_sentence, 5)
+        article_id = search_results[0]["article_id"]
+        html = get_html(article_id)
+        page = BeautifulSoup(html, 'lxml')
+        tags = list(page.find_all(['p']))
+        if tags:
+            howto_content = f"{tags[0].text.strip()}@en"
+        else:
+            howto_content = "Not Found"
+        return howto_content

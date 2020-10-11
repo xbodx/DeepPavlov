@@ -161,7 +161,7 @@ class QueryGenerator(QueryGeneratorBase):
                 fill_query(query_hdt_elem, combs[0], combs[1], combs[2]) for query_hdt_elem in query_sequence]
             if comb_num == 0:
                 log.debug(f"\n_______________________________\nfilled query: {query_hdt_seq}\n_______________________________\n")
-            candidate_output = self.wiki_parser(
+            candidate_output = self.wiki_parser.execute(
                 rels_from_query + answer_ent, query_hdt_seq, filter_info, order_info)
             candidate_outputs += [[rel for rel, score in combs[2][:-1]] + output + [confidence]
                                   for output in candidate_output]
