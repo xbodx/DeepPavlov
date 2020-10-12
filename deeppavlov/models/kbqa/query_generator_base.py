@@ -160,9 +160,9 @@ class QueryGeneratorBase(Component, Serializable):
         for entity in entities:
             entity_id = []
             if what_to_link == "entities":
-                entity_id, confidences = self.linker_entities.link_entity(entity, context=question, template_found=template_found)
+                entity_id, confidences = self.linker_entities([entity], [template_found])
             if what_to_link == "types":
-                entity_id, confidences = self.linker_types.link_entity(entity)
+                entity_id, confidences = self.linker_types([entity])
             entity_ids.append(entity_id[:15])
         return entity_ids
 

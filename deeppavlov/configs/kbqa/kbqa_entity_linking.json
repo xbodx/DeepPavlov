@@ -1,10 +1,10 @@
 {
   "chainer": {
-    "in": ["entity_substr"],
+    "in": ["entity_substr", "template_found"],
     "pipe": [
       {
         "class_name": "kbqa_entity_linker",
-        "in": ["entity_substr"],
+        "in": ["entity_substr", "template_found"],
         "out": ["entity_ids", "confidences"],
         "load_path": "{DOWNLOADS_PATH}/wikidata_eng",
         "inverted_index_filename": "inverted_index_eng.pickle",

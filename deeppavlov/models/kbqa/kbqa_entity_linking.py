@@ -183,13 +183,18 @@ class KBEntityLinker(Component, Serializable):
         if self.q2descr_filename is not None:
             save_pickle(self.q2descr, self.save_path / self.q2descr_filename)
 
-    def __call__(self, entity_substr_batch: List[List[str]], entity_positions_batch: List[List[List[int]]] = None,
+    def __call__(self, entity_substr_batch: List[List[str]],
+                 templates_batch: List[str] = None,
+                 entity_positions_batch: List[List[List[int]]] = None,
                  context_tokens: List[List[str]] = None) -> Tuple[List[List[List[str]]], List[List[List[float]]]]:
         entity_ids_batch = []
         confidences_batch = []
         if entity_positions_batch is None:
             entity_positions_batch = [[[0] for i in range(len(entities_list))] for entities_list in entity_substr_batch]
-        for entity_substr_list, entity_positions_list in zip(entity_substr_batch, entity_positions_batch):
+        if templates_batch is None:
+            templates_batch = ["" for i in range(len(entity_substr_batch))]
+        for entity_substr_list, template_found, entity_positions_list in \
+                zip(entity_substr_batch, templates_batch, entity_positions_batch):
             entity_ids_list = []
             confidences_list = []
             for entity_substr, entity_pos in zip(entity_substr_list, entity_positions_list):
@@ -201,7 +206,7 @@ class KBEntityLinker(Component, Serializable):
                                    context_tokens[entity_pos[-1]+1:])
                     else:
                         context = ' '.join(context_tokens[:entity_pos[0]]+["[ENT]"] + context_tokens[entity_pos[-1]+1:])
-                entity_ids, confidences = self.link_entity(entity_substr, context)
+                entity_ids, confidences = self.link_entity(entity_substr, template_found, context)
                 if self.num_entities_to_return == 1:
                     if entity_ids:
                         entity_ids_list.append(entity_ids[0])
