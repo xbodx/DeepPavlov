@@ -41,29 +41,6 @@
         "out": ["template_type"]
       },
       {
-        "class_name": "kbqa_entity_linker",
-        "id": "linker_entities",
-        "load_path": "{DOWNLOADS_PATH}/wikidata_eng",
-        "inverted_index_filename": "inverted_index_eng.pickle",
-        "entities_list_filename": "entities_list.pickle",
-        "q2name_filename": "wiki_eng_q_to_name.pickle",
-        "who_entities_filename": "who_entities.pickle",
-        "build_inverted_index": false,
-        "use_descriptions": false,
-        "use_prefix_tree": false
-      },
-      {
-        "class_name": "kbqa_entity_linker",
-        "id": "linker_types",
-        "load_path": "{DOWNLOADS_PATH}/wikidata_eng",
-        "inverted_index_filename": "inverted_index_types_eng.pickle",
-        "entities_list_filename": "types_list.pickle",
-        "q2name_filename": "wiki_eng_q_to_name_types.pickle",
-        "build_inverted_index": false,
-        "use_descriptions": false,
-        "use_prefix_tree": false
-      },
-      {
         "class_name": "rel_ranking_infer",
         "id": "rel_r_inf",
         "ranker": {"config_path": "{CONFIGS_PATH}/ranking/rel_ranking.json"},
@@ -74,8 +51,8 @@
       {
         "class_name": "query_generator",
         "id": "query_g",
-        "linker_entities": "#linker_entities",
-        "linker_types": "#linker_types",
+        "linker_entities": {"config_path": "{CONFIGS_PATH}/kbqa/kbqa_entity_linking.json"},
+        "linker_types": {"config_path": "{CONFIGS_PATH}/kbqa/kbqa_entity_linking_types.json"},
         "template_matcher": "#template_m",
         "rel_ranker": "#rel_r_inf",
         "wiki_parser": "#wiki_p",
