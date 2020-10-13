@@ -51,6 +51,7 @@ class QueryGeneratorBase(Component, Serializable):
                  entities_to_leave: int = 5,
                  rels_to_leave: int = 7,
                  syntax_structure_known: bool = False,
+                 use_entity_linking_api: bool = False,
                  return_answers: bool = False, *args, **kwargs) -> None:
         """
 
@@ -82,6 +83,7 @@ class QueryGeneratorBase(Component, Serializable):
         self.entities_to_leave = entities_to_leave
         self.rels_to_leave = rels_to_leave
         self.syntax_structure_known = syntax_structure_known
+        self.use_entity_linking_api = use_entity_linking_api
         self.sparql_queries_filename = sparql_queries_filename
         self.return_answers = return_answers
 
@@ -157,14 +159,15 @@ class QueryGeneratorBase(Component, Serializable):
                              template_found: str = None,
                              question: str = None) -> List[List[str]]:
         entity_ids = []
-        if what_to_link == "entities":
+        if what_to_link == "entities" and :
             print("entities", [entities], "template_found", [template_found])
-            entity_ids = self.linker_entities([entities], [template_found])
-            print("entity_ids", entity_ids)
-            entity_ids = entity_ids[0]
+            entity_ids = self.linker_entities([entities], [template_found])[0]
+            if self.use_entity_linking_api:
+                entity_ids = entity_ids[0]
             print("entity_ids", entity_ids)
         if what_to_link == "types":
             entity_ids = self.linker_types([entities])[0]
+            
         return entity_ids
 
     def sparql_template_parser(self, question: str,
