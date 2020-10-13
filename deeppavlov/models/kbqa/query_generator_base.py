@@ -162,12 +162,12 @@ class QueryGeneratorBase(Component, Serializable):
         if what_to_link == "entities":
             print("entities", [entities], "template_found", [template_found])
             entity_ids = self.linker_entities([entities], [template_found])[0]
-            if self.use_entity_linking_api:
-                entity_ids = entity_ids[0]
             print("entity_ids", entity_ids)
         if what_to_link == "types":
             entity_ids = self.linker_types([entities])[0]
-            
+            print("entity_ids, types", entity_ids)
+        entity_ids = entity_ids[0]
+        
         return entity_ids
 
     def sparql_template_parser(self, question: str,
