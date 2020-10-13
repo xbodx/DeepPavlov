@@ -158,7 +158,9 @@ class QueryGeneratorBase(Component, Serializable):
                              question: str = None) -> List[List[str]]:
         entity_ids = []
         if what_to_link == "entities":
+            print("entities", [entities], "template_found", [template_found])
             entity_ids = self.linker_entities([entities], [template_found])[0]
+            print("entity_ids", entity_ids)
         if what_to_link == "types":
             entity_id = self.linker_types([entities])[0]
         return entity_ids
