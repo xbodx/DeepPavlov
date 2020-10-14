@@ -40,16 +40,13 @@ class Wikidata:
             raise ValueError("Unsupported file format")
     
     def __call__(self, queries: List[Union[str, List[str]]]):
-        print("queries", queries)
         triplets = []
         for query in queries:
-            print("query", query)
             if self.file_format == "hdt":
                 tr, c = self.document.search_triples(*query)
             if self.file_format == "pickle":
                 tr = self.document.get(query, {})
             triplets.append(tr)
-        print("triplets", triplets)
         return triplets
 
 @register('wiki_parser')
@@ -164,7 +161,7 @@ class WikiParser:
             if obj:
                 direction = "backw"
             subj = subj.split('/')[-1]
-            triplets = self.wikidata([subj])[0].get(direction, [])
+            triplets = self.wikidata([subj])[0][0].get(direction, [])
             triplets = [[subj, triplet[0], obj] for triplet in triplets for obj in triplet[1:]]
             if rel:
                 rel = rel.split('/')[-1]
@@ -212,7 +209,7 @@ class WikiParser:
         if self.file_format == "pickle":
             if entity:
                 if entity.startswith("Q"):
-                    triplets = self.wikidata([entity])[0].get("forw", [])
+                    triplets = self.wikidata([entity])[0][0].get("forw", [])
                     for triplet in triplets:
                         if triplet[0] == "name_en":
                             return triplet[1]
@@ -243,6 +240,6 @@ class WikiParser:
                 start_str = "http://www.wikidata.org/prop/P"
             rels = [triplet[1] for triplet in triplets if triplet[1].startswith(start_str)]
         if self.file_format == "pickle":
-            triplets = self.wikidata([entity])[0].get(direction, [])
+            triplets = self.wikidata([entity])[0][0].get(direction, [])
             rels = [triplet[0] for triplet in triplets]
         return rels
