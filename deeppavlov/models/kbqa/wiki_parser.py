@@ -40,8 +40,10 @@ class Wikidata:
             raise ValueError("Unsupported file format")
     
     def __call__(self, queries: List[Union[str, List[str]]]):
+        print("queries", queries)
         triplets = []
         for query in queries:
+            print("query", query)
             if self.file_format == "hdt":
                 tr, c = self.document.search_triples(*query)
             if self.file_format == "pickle":
