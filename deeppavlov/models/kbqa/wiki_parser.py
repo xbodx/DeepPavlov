@@ -49,7 +49,7 @@ class Wikidata:
             if self.file_format == "pickle":
                 tr = self.document.get(query, {})
             triplets.append(tr)
-        
+        print("triplets", triplets)
         return triplets
 
 @register('wiki_parser')
