@@ -210,11 +210,13 @@ class KBEntityLinker(Component, Serializable):
                 if self.num_entities_to_return == 1:
                     if entity_ids:
                         entity_ids_list.append(entity_ids[0])
+                        confidences_list.append(confidences[0])
                     else:
                         entity_ids_list.append("")
+                        confidences_list.append(0.0)
                 else:
                     entity_ids_list.append(entity_ids[:self.num_entities_to_return])
-                confidences_list.append(confidences)
+                    confidences_list.append(confidences[:self.num_entities_to_return])
         entity_ids_batch.append(entity_ids_list)
         confidences_batch.append(confidences_list)
 
