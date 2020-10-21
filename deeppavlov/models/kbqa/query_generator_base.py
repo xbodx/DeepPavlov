@@ -137,6 +137,8 @@ class QueryGeneratorBase(Component, Serializable):
                 log.debug(f"rels_from_template {rels_from_template}")
                 log.debug(f"entity_ids {entity_ids}")
                 log.debug(f"type_ids {type_ids}")
+                print("entity_ids", entity_ids)
+                print("type_ids", type_ids)
                 print("entities from template", entities_from_template)
                 print("rels_from_template", rels_from_template)
 
@@ -148,8 +150,9 @@ class QueryGeneratorBase(Component, Serializable):
             print("entities_from_ner", entities_from_ner)
             log.debug(f"(__call__)types_from_ner: {types_from_ner}")
             entity_ids = self.get_entity_ids(entities_from_ner, "entities", question=question)
-            print("entity_ids", entity_ids)
+            print("entity_ids, ner", entity_ids)
             type_ids = self.get_entity_ids(types_from_ner, "types")
+            print("type_ids, ner", type_ids)
             log.debug(f"(__call__)entity_ids: {entity_ids}")
             log.debug(f"(__call__)type_ids: {type_ids}")
             self.template_nums = template_types
@@ -169,7 +172,7 @@ class QueryGeneratorBase(Component, Serializable):
             entity_ids, _ = self.linker_entities([entities], [template_found])[0]
         if what_to_link == "types":
             entity_ids, _ = self.linker_types([entities])
-        entity_ids = entity_ids[0]
+            entity_ids = entity_ids[0]
         
         return entity_ids
 
