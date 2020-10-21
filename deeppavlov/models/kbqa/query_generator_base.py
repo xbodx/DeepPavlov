@@ -186,6 +186,8 @@ class QueryGeneratorBase(Component, Serializable):
                 if (num == template_num and self.syntax_structure_known) or \
                    (template["template_num"] == template_num and not self.syntax_structure_known):
                     templates.append(template)
+        print("len entity_ids, type_ids", [len(entity_ids), len(type_ids)])
+        print("syntax structure known", self.syntax_structure_known)
         templates = [template for template in templates if \
                     (not self.syntax_structure_known and [len(entity_ids), len(type_ids)] == template["entities_and_types_num"]) \
                      or self.syntax_structure_known]
