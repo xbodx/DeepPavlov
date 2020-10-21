@@ -93,7 +93,6 @@ class QueryGenerator(QueryGeneratorBase):
                      rels_from_template: Optional[List[Tuple[str]]] = None) -> List[Tuple[str]]:
         candidate_outputs = []
         question_tokens = nltk.word_tokenize(question)
-        print("query_info", query_info)
         query = query_info["query_template"].lower().replace("wdt:p31", "wdt:P31")
         log.debug(f"\n_______________________________\nquery: {query}\n_______________________________\n")
         rels_for_search = query_info["rank_rels"]

@@ -123,7 +123,6 @@ class QueryGeneratorBase(Component, Serializable):
 
         log.debug(f"question: {question}\n")
         log.debug(f"template_type {self.template_nums}")
-        print("template_type", self.template_nums)
 
         if entities_from_template or types_from_template:
             if rels_from_template[0][0] == "PHOW":
@@ -137,27 +136,19 @@ class QueryGeneratorBase(Component, Serializable):
                 log.debug(f"rels_from_template {rels_from_template}")
                 log.debug(f"entity_ids {entity_ids}")
                 log.debug(f"type_ids {type_ids}")
-                print("entity_ids", entity_ids)
-                print("type_ids", type_ids)
-                print("entities from template", entities_from_template)
-                print("rels_from_template", rels_from_template)
 
                 candidate_outputs = self.sparql_template_parser(question_sanitized, entity_ids, type_ids, rels_from_template,
                                                                 rel_dirs_from_template)
 
         if not candidate_outputs and entities_from_ner:
             log.debug(f"(__call__)entities_from_ner: {entities_from_ner}")
-            print("entities_from_ner", entities_from_ner)
             log.debug(f"(__call__)types_from_ner: {types_from_ner}")
             entity_ids = self.get_entity_ids(entities_from_ner, "entities", question=question)
-            print("entity_ids, ner", entity_ids)
             type_ids = self.get_entity_ids(types_from_ner, "types")
-            print("type_ids, ner", type_ids)
             log.debug(f"(__call__)entity_ids: {entity_ids}")
             log.debug(f"(__call__)type_ids: {type_ids}")
             self.template_nums = template_types
             log.debug(f"(__call__)self.template_nums: {self.template_nums}")
-            print("from ner, template_nums", self.template_nums)
             if not self.syntax_structure_known:
                 entity_ids = entity_ids[:3]
             candidate_outputs = self.sparql_template_parser(question_sanitized, entity_ids, type_ids)
@@ -189,8 +180,6 @@ class QueryGeneratorBase(Component, Serializable):
                 if (num == template_num and self.syntax_structure_known) or \
                    (template["template_num"] == template_num and not self.syntax_structure_known):
                     templates.append(template)
-        print("len entity_ids, type_ids", [len(entity_ids), len(type_ids)])
-        print("syntax structure known", self.syntax_structure_known)
         templates = [template for template in templates if \
                     (not self.syntax_structure_known and [len(entity_ids), len(type_ids)] == template["entities_and_types_num"]) \
                      or self.syntax_structure_known]
