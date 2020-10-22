@@ -173,18 +173,20 @@ class QueryGenerator(QueryGeneratorBase):
             parser_info_list.append("query_execute")
             if comb_num == self.max_comb_num:
                 break
-            
+        
+        candidate_outputs = []
         candidate_outputs_list = self.wiki_parser(parser_info_list, queries_list)
         print("candidate_outputs_list", candidate_outputs_list)
-        if self.use_api_requester:
+        if self.use_api_requester and isinstance(candidate_outputs_list, list) and candidate_outputs_list:
             candidate_outputs_list = candidate_outputs_list[0]
-        outputs_len = len(candidate_outputs_list)
-        all_combs_list = all_combs_list[:outputs_len]
-        confidences_list = confidences_list[:outputs_len]
-        candidate_outputs = []
-        for combs, confidence, candidate_output in zip(all_combs_list, confidences_list, candidate_outputs_list):
-            candidate_outputs += [[rel for rel, score in combs[2][:-1]] + output + [confidence]
-                                  for output in candidate_output]
+        
+        if isinstance(candidate_outputs_list, list) and candidate_outputs_list:
+            outputs_len = len(candidate_outputs_list)
+            all_combs_list = all_combs_list[:outputs_len]
+            confidences_list = confidences_list[:outputs_len]
+            for combs, confidence, candidate_output in zip(all_combs_list, confidences_list, candidate_outputs_list):
+                candidate_outputs += [[rel for rel, score in combs[2][:-1]] + output + [confidence]
+                                      for output in candidate_output]
         log.debug(f"(query_parser)loop time: {datetime.datetime.now() - start_time}")
         log.debug(f"(query_parser)final outputs: {candidate_outputs[:3]}")
 
