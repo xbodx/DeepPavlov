@@ -142,7 +142,7 @@ class WikiParser:
                 for filter_elem, filter_value in filter_info:
                     combs = [comb for comb in combs if filter_value in comb[filter_elem]]
 
-            if order_info and order_info.variable is not None:
+            if order_info and not isinstance(order_info, list) and order_info.variable is not None:
                 reverse = True if order_info.sorting_order == "desc" else False
                 sort_elem = order_info.variable
                 combs = sorted(combs, key=lambda x: float(x[sort_elem].split('^^')[0].strip('"')), reverse=reverse)
