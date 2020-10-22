@@ -228,6 +228,7 @@ class QueryGeneratorBase(Component, Serializable):
                                                      for entity in entity_id[:self.entities_to_leave]})
             parser_info_list = ["find_rels" for i in range(len(queries_list))]
             ex_rels = self.wiki_parser(parser_info_list, queries_list)
+            print("ex_rels", ex_rels)
             if self.use_api_requester and ex_rels:
                 ex_rels = ex_rels[0]
             ex_rels = list(set(ex_rels))
