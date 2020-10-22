@@ -54,13 +54,15 @@ class WikiParser:
         wiki_parser_output = []
         for parser_info, query in zip(parser_info_list, queries_list):
             if parser_info == "query_execute":
+                print("query execute", query)
                 *query_to_execute, return_if_found = query
                 candidate_output = self.execute(*query_to_execute)
                 wiki_parser_output.append(candidate_output)
                 if return_if_found and candidate_output:
                     return wiki_parser_output
             elif parser_info == "find_rels":
-                wiki_parser_output += self.find_rels(query)
+                print("query", query)
+                wiki_parser_output += self.find_rels(*query)
             elif parser_info == "find_label":
                 wiki_parser_output.append(self.find_label(*query))
             elif parser_info == "find_triplets":
