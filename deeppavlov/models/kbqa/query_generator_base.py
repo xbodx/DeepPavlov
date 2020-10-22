@@ -230,7 +230,7 @@ class QueryGeneratorBase(Component, Serializable):
             ex_rels = self.wiki_parser(parser_info_list, queries_list)
             print("ex_rels", ex_rels)
             if self.use_api_requester and ex_rels:
-                ex_rels = ex_rels[0]
+                ex_rels = [rel[0] for rel in ex_rels]
             ex_rels = list(set(ex_rels))
             ex_rels = [rel.split('/')[-1] for rel in ex_rels]
         elif source == "rank_list_1":
