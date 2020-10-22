@@ -228,9 +228,8 @@ class QueryGeneratorBase(Component, Serializable):
                                                      for entity in entity_id[:self.entities_to_leave]})
             parser_info_list = ["find_rels" for i in range(len(queries_list))]
             ex_rels = self.wiki_parser(parser_info_list, queries_list)
-            if self.use_api_requester:
+            if self.use_api_requester and ex_rels:
                 ex_rels = ex_rels[0]
-            print("extracted_rels", ex_rels)
             ex_rels = list(set(ex_rels))
             ex_rels = [rel.split('/')[-1] for rel in ex_rels]
         elif source == "rank_list_1":
