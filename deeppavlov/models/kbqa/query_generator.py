@@ -118,7 +118,6 @@ class QueryGenerator(QueryGeneratorBase):
         if rels_from_template is not None:
             rels = [[(rel, 1.0) for rel in rel_list] for rel_list in rels_from_template]
         else:
-            print("before find top rels", entity_ids)
             rels = [self.find_top_rels(question, entity_ids, triplet_info)
                     for triplet_info in triplet_info_list]
         log.debug(f"(query_parser)rels: {rels}")
@@ -176,7 +175,6 @@ class QueryGenerator(QueryGeneratorBase):
         
         candidate_outputs = []
         candidate_outputs_list = self.wiki_parser(parser_info_list, queries_list)
-        print("candidate_outputs_list", candidate_outputs_list)
         if self.use_api_requester and isinstance(candidate_outputs_list, list) and candidate_outputs_list:
             candidate_outputs_list = candidate_outputs_list[0]
         

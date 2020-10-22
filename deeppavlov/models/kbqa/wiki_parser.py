@@ -54,14 +54,12 @@ class WikiParser:
         wiki_parser_output = []
         for parser_info, query in zip(parser_info_list, queries_list):
             if parser_info == "query_execute":
-                print("query execute", query)
                 *query_to_execute, return_if_found = query
                 candidate_output = self.execute(*query_to_execute)
                 wiki_parser_output.append(candidate_output)
                 if return_if_found and candidate_output:
                     return wiki_parser_output
             elif parser_info == "find_rels":
-                print("query", query)
                 wiki_parser_output += self.find_rels(*query)
             elif parser_info == "find_label":
                 wiki_parser_output.append(self.find_label(*query))
@@ -172,7 +170,6 @@ class WikiParser:
             triplets = self.document.get(subj, {}).get(direction, [])
             triplets = [[subj, triplet[0], obj] for triplet in triplets for obj in triplet[1:]]
             if rel:
-                print("triplets", triplets)
                 if rel == self.description_rel:
                     triplets = [triplet for triplet in triplets if triplet[1] == "descr_en"]
                 else:
@@ -253,7 +250,5 @@ class WikiParser:
             rels = [triplet[1] for triplet in triplets if triplet[1].startswith(start_str)]
         if self.file_format == "pickle":
             triplets = self.document.get(entity, {}).get(direction, [])
-            print("find_rels, triplets", triplets)
             rels = [triplet[0] for triplet in triplets if triplet[0].startswith("P")]
-            print("returned rels", rels)
         return rels
