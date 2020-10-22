@@ -51,7 +51,7 @@ class QueryGeneratorBase(Component, Serializable):
                  entities_to_leave: int = 5,
                  rels_to_leave: int = 7,
                  syntax_structure_known: bool = False,
-                 use_entity_linking_api: bool = False,
+                 use_api_requester: bool = False,
                  return_answers: bool = False, *args, **kwargs) -> None:
         """
 
@@ -83,7 +83,7 @@ class QueryGeneratorBase(Component, Serializable):
         self.entities_to_leave = entities_to_leave
         self.rels_to_leave = rels_to_leave
         self.syntax_structure_known = syntax_structure_known
-        self.use_entity_linking_api = use_entity_linking_api
+        self.use_api_requester = use_api_requester
         self.sparql_queries_filename = sparql_queries_filename
         self.return_answers = return_answers
 
@@ -160,10 +160,13 @@ class QueryGeneratorBase(Component, Serializable):
                              question: str = None) -> List[List[str]]:
         entity_ids = []
         if what_to_link == "entities":
-            entity_ids, _ = self.linker_entities([entities], [template_found])[0]
+            el_output = self.linker_entities([entities], [template_found])
+            if self.use_api_requester:
+                el_output = el_output[0]
+            entity_ids, _ = el_output
         if what_to_link == "types":
             entity_ids, _ = self.linker_types([entities])
-            entity_ids = entity_ids[0]
+        entity_ids = entity_ids[0]
         
         return entity_ids
 
@@ -219,9 +222,15 @@ class QueryGeneratorBase(Component, Serializable):
         ex_rels = []
         direction, source, rel_type = triplet_info
         if source == "wiki":
-            for entity_id in entity_ids:
-                for entity in entity_id[:self.entities_to_leave]:
-                    ex_rels += self.wiki_parser.find_rels(entity, direction, rel_type)
+            queries_list = []
+            parser_info_list = []
+            queries_list = list({(entity, direction, rel_type) for entity_id in entity_ids 
+                                                     for entity in entity_id[:self.entities_to_leave]})
+            parser_info_list = ["find_rels" for i in range(len(queries_list))]
+            ex_rels = self.wiki_parser(parser_info_list, queries_list)
+            if self.use_api_requester:
+                ex_rels = ex_rels[0]
+            print("extracted_rels", ex_rels)
             ex_rels = list(set(ex_rels))
             ex_rels = [rel.split('/')[-1] for rel in ex_rels]
         elif source == "rank_list_1":

@@ -25,7 +25,8 @@
       {
         "class_name": "wiki_parser",
         "id": "wiki_p",
-        "wiki_filename": "{DOWNLOADS_PATH}/wikidata/wikidata.hdt",
+        "file_format": "pickle",
+        "wiki_filename": "{DOWNLOADS_PATH}/wikidata/wikidata_tiny.pickle",
         "lang": "@en"
       },
       {
@@ -49,10 +50,37 @@
         "rels_to_leave": 40
       },
       {
+        "class_name": "kbqa_entity_linker",
+        "id": "linker_entities",
+        "load_path": "{DOWNLOADS_PATH}/wikidata_eng",
+        "inverted_index_filename": "inverted_index_eng.pickle",
+        "entities_list_filename": "entities_list.pickle",
+        "q2name_filename": "wiki_eng_q_to_name.pickle",
+        "who_entities_filename": "who_entities.pickle",
+        "mixed_up_entities_filename": "mixed_up_entities.pickle",
+        "num_entities_to_return": 15,
+        "lemmatize": true,
+        "build_inverted_index": false,
+        "use_descriptions": false,
+        "use_prefix_tree": false
+      },
+      {
+        "class_name": "kbqa_entity_linker",
+        "id": "linker_types",
+        "load_path": "{DOWNLOADS_PATH}/wikidata_eng",
+        "inverted_index_filename": "inverted_index_types_eng.pickle",
+        "entities_list_filename": "types_list.pickle",
+        "q2name_filename": "wiki_eng_q_to_name_types.pickle",
+        "num_entities_to_return": 15,
+        "build_inverted_index": false,
+        "use_descriptions": false,
+        "use_prefix_tree": false
+      },
+      {
         "class_name": "query_generator",
         "id": "query_g",
-        "linker_entities": {"config_path": "{CONFIGS_PATH}/kbqa/kbqa_entity_linking.json"},
-        "linker_types": {"config_path": "{CONFIGS_PATH}/kbqa/kbqa_entity_linking_types.json"},
+        "linker_entities": "#linker_entities",
+        "linker_types": "#linker_types",
         "template_matcher": "#template_m",
         "rel_ranker": "#rel_r_inf",
         "wiki_parser": "#wiki_p",

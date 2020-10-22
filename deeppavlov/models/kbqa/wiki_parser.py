@@ -15,7 +15,7 @@
 import datetime
 import re
 from logging import getLogger
-from typing import List, Tuple, Dict, Union
+from typing import List, Tuple, Dict, Union, Any
 from collections import namedtuple
 
 from hdt import HDTDocument
@@ -27,47 +27,53 @@ from deeppavlov.core.models.component import Component
 
 log = getLogger(__name__)
 
-@register('wikidata')
-class Wikidata:
-    def __init__(self, wiki_filename: str, file_format: str = "hdt", **kwargs) -> None:
-        wiki_path = expand_path(wiki_filename)
-        self.file_format = file_format
-        if self.file_format == "hdt":
-            self.document = HDTDocument(str(wiki_path))
-        elif self.file_format == "pickle":
-            self.document = load_pickle(wiki_path)
-        else:
-            raise ValueError("Unsupported file format")
-    
-    def __call__(self, queries: List[Union[str, List[str]]]):
-        triplets = []
-        for query in queries:
-            if self.file_format == "hdt":
-                tr, c = self.document.search_triples(*query)
-            if self.file_format == "pickle":
-                tr = self.document.get(query, {})
-            triplets.append(tr)
-        return triplets
-
 @register('wiki_parser')
 class WikiParser:
     """This class extract relations, objects or triplets from Wikidata HDT file"""
 
-    def __init__(self, wikidata: Wikidata, file_format: str = "hdt", lang: str = "@en", **kwargs) -> None:
+    def __init__(self, wiki_filename: str, file_format: str = "hdt", lang: str = "@en", **kwargs) -> None:
         """
 
         Args:
-            wikidata: class deeppavlov.models.kbqa.wiki_parser:Wikidata
             file_format: format of Wikidata file
             lang: Russian or English language
             **kwargs:
         """
         self.description_rel = "http://schema.org/description"
         self.file_format = file_format
-        self.wikidata = wikidata
+        self.wiki_filename = str(expand_path(wiki_filename))
+        if self.file_format == "hdt":
+            self.document = HDTDocument(self.wiki_filename)
+        elif self.file_format == "pickle":
+            self.document = load_pickle(self.wiki_filename)
+        else:
+            raise ValueError("Unsupported file format")
         self.lang = lang
+        
+    def __call__(self, parser_info_list: List[str], queries_list: List[Any]) -> List[Any]:
+        wiki_parser_output = []
+        for parser_info, query in zip(parser_info_list, queries_list):
+            if parser_info == "query_execute":
+                *query_to_execute, return_if_found = query
+                candidate_output = self.execute(*query_to_execute)
+                wiki_parser_output.append(candidate_output)
+                if return_if_found and candidate_output:
+                    return wiki_parser_output
+            elif parser_info == "find_rels":
+                wiki_parser_output += self.find_rels(*query)
+            elif parser_info == "find_label":
+                wiki_parser_output.append(self.find_label(*query))
+            elif parser_info == "find_triplets":
+                if self.file_format == "hdt":
+                    tr, c = self.document.search_triples(*query)
+                    wiki_parser_output.append(list(tr))
+                else:
+                    wiki_parser_output.append(self.document.get(query, {}))
+            else:
+                raise ValueError("Unsupported query type")
+        return wiki_parser_output
 
-    def __call__(self, what_return: List[str],
+    def execute(self, what_return: List[str],
                  query_seq: List[List[str]],
                  filter_info: List[Tuple[str]] = None,
                  order_info: namedtuple = None) -> List[List[str]]:
@@ -151,7 +157,7 @@ class WikiParser:
         query = list(map(lambda elem: "" if elem.startswith('?') else elem, query))
         subj, rel, obj = query
         if self.file_format == "hdt":
-            triplets = self.wikidata([query])[0]
+            triplets, c = self.document.search_triples(subj, rel, obj)
             if rel == self.description_rel:
                 triplets = [triplet for triplet in triplets if triplet[2].endswith(self.lang)]
             combs = [{elem: triplet[pos] for pos, elem in unknown_elem_positions} for triplet in triplets]
@@ -161,11 +167,15 @@ class WikiParser:
             if obj:
                 direction = "backw"
             subj = subj.split('/')[-1]
-            triplets = self.wikidata([subj])[0][0].get(direction, [])
+            triplets = self.document.get(subj, {}).get(direction, [])
             triplets = [[subj, triplet[0], obj] for triplet in triplets for obj in triplet[1:]]
             if rel:
-                rel = rel.split('/')[-1]
-                triplets = [triplet for triplet in triplets if triplet[1] == rel]
+                print("triplets", triplets)
+                if rel == self.description_rel:
+                    triplets = [triplet for triplet in triplets if triplet[1] == "descr_en"]
+                else:
+                    rel = rel.split('/')[-1]
+                    triplets = [triplet for triplet in triplets if triplet[1] == rel]
             combs = [{elem: triplet[pos] for pos, elem in unknown_elem_positions} for triplet in triplets]
         return combs
 
@@ -178,7 +188,7 @@ class WikiParser:
                 # "http://www.wikidata.org/entity/Q5513"
 
             if entity.startswith("http://www.wikidata.org/entity/"):
-                labels = self.wikidata([[entity, "http://www.w3.org/2000/01/rdf-schema#label", ""]])[0]
+                labels = self.document.search_triples(entity, "http://www.w3.org/2000/01/rdf-schema#label", "")
                 # labels = [["http://www.wikidata.org/entity/Q5513", "http://www.w3.org/2000/01/rdf-schema#label", '"Lake Baikal"@en'], ...]
                 for label in labels:
                     if label[2].endswith(self.lang):
@@ -209,7 +219,7 @@ class WikiParser:
         if self.file_format == "pickle":
             if entity:
                 if entity.startswith("Q"):
-                    triplets = self.wikidata([entity])[0][0].get("forw", [])
+                    triplets = self.document.get(entity, {}).get("forw", [])
                     for triplet in triplets:
                         if triplet[0] == "name_en":
                             return triplet[1]
@@ -232,7 +242,7 @@ class WikiParser:
                 query = [f"http://www.wikidata.org/entity/{entity}", "", ""]
             else:
                 query = ["", "", f"http://www.wikidata.org/entity/{entity}"]
-            triplets = self.wikidata([query])[0]
+            triplets, c = self.document.search_triples(*query)
 
             if rel_type != "no_type":
                 start_str = f"http://www.wikidata.org/prop/{rel_type}"
@@ -240,6 +250,6 @@ class WikiParser:
                 start_str = "http://www.wikidata.org/prop/P"
             rels = [triplet[1] for triplet in triplets if triplet[1].startswith(start_str)]
         if self.file_format == "pickle":
-            triplets = self.wikidata([entity])[0][0].get(direction, [])
-            rels = [triplet[0] for triplet in triplets]
+            triplets = self.document.get(entity, {}).get(direction, [])
+            rels = [triplet[0] for triplet in triplets if triplet[0].startswith("P")]
         return rels
