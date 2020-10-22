@@ -253,5 +253,7 @@ class WikiParser:
             rels = [triplet[1] for triplet in triplets if triplet[1].startswith(start_str)]
         if self.file_format == "pickle":
             triplets = self.document.get(entity, {}).get(direction, [])
+            print("find_rels, triplets", triplets)
             rels = [triplet[0] for triplet in triplets if triplet[0].startswith("P")]
+            print("returned rels", rels)
         return rels
