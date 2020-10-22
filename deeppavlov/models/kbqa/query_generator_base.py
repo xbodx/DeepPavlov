@@ -166,7 +166,7 @@ class QueryGeneratorBase(Component, Serializable):
             entity_ids, _ = el_output
         if what_to_link == "types":
             entity_ids, _ = self.linker_types([entities])
-        entity_ids = entity_ids[0]
+            entity_ids = entity_ids[0]
         
         return entity_ids
 
