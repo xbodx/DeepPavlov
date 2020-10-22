@@ -60,7 +60,7 @@ class WikiParser:
                 if return_if_found and candidate_output:
                     return wiki_parser_output
             elif parser_info == "find_rels":
-                wiki_parser_output += self.find_rels(*query)
+                wiki_parser_output += self.find_rels(query)
             elif parser_info == "find_label":
                 wiki_parser_output.append(self.find_label(*query))
             elif parser_info == "find_triplets":
