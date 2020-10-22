@@ -118,6 +118,7 @@ class QueryGenerator(QueryGeneratorBase):
         if rels_from_template is not None:
             rels = [[(rel, 1.0) for rel in rel_list] for rel_list in rels_from_template]
         else:
+            print("before find top rels", entity_ids)
             rels = [self.find_top_rels(question, entity_ids, triplet_info)
                     for triplet_info in triplet_info_list]
         log.debug(f"(query_parser)rels: {rels}")
