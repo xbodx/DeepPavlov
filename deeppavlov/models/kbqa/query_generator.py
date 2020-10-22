@@ -42,6 +42,7 @@ class QueryGenerator(QueryGeneratorBase):
                  rel_ranker: Union[RelRankerInfer, RelRankerBertInfer],
                  entities_to_leave: int = 5,
                  rels_to_leave: int = 7,
+                 max_comb_num: int = 50,
                  return_answers: bool = False, *args, **kwargs) -> None:
         """
 
@@ -57,6 +58,7 @@ class QueryGenerator(QueryGeneratorBase):
         self.rel_ranker = rel_ranker
         self.entities_to_leave = entities_to_leave
         self.rels_to_leave = rels_to_leave
+        self.max_comb_num = max_comb_num
         self.return_answers = return_answers
         super().__init__(wiki_parser = self.wiki_parser, rel_ranker = self.rel_ranker,
             entities_to_leave = self.entities_to_leave, rels_to_leave = self.rels_to_leave,
@@ -165,7 +167,7 @@ class QueryGenerator(QueryGeneratorBase):
                 rels_from_query + answer_ent, query_hdt_seq, filter_info, order_info)
             candidate_outputs += [[rel for rel, score in combs[2][:-1]] + output + [confidence]
                                   for output in candidate_output]
-            if return_if_found and candidate_output:
+            if return_if_found and candidate_output or comb_num == self.max_comb_num:
                 return candidate_outputs
         log.debug(f"(query_parser)loop time: {datetime.datetime.now() - start_time}")
         log.debug(f"(query_parser)final outputs: {candidate_outputs[:3]}")
