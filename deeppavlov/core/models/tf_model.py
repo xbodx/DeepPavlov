@@ -34,7 +34,7 @@ log = getLogger(__name__)
 class TFModel(NNModel, metaclass=TfModelMeta):
     """Parent class for all components using TensorFlow."""
 
-    sess: tf.Session
+    sess: tf.compat.v1.Session
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -47,11 +47,11 @@ class TFModel(NNModel, metaclass=TfModelMeta):
         path = path or self.load_path
         path = str(Path(path).resolve())
         # Check presence of the model files
-        if tf.train.checkpoint_exists(path):
+        if tf.compat.v1.train.checkpoint_exists(path):
             log.info('[loading model from {}]'.format(path))
             # Exclude optimizer variables from saved variables
             var_list = self._get_saveable_variables(exclude_scopes)
-            saver = tf.train.Saver(var_list)
+            saver = tf.compat.v1.train.Saver(var_list)
             saver.restore(self.sess, path)
 
     def deserialize(self, weights: Iterable[Tuple[str, np.ndarray]]) -> None:
@@ -60,8 +60,8 @@ class TFModel(NNModel, metaclass=TfModelMeta):
         for var_name, value in weights:
             var = self.sess.graph.get_tensor_by_name(var_name)
             value = np.asarray(value)
-            assign_placeholder = tf.placeholder(var.dtype, shape=value.shape)
-            assign_op = tf.assign(var, assign_placeholder)
+            assign_placeholder = tf.compat.v1.placeholder(var.dtype, shape=value.shape)
+            assign_op = tf.compat.v1.assign(var, assign_placeholder)
             assign_ops.append(assign_op)
             feed_dict[assign_placeholder] = value
         self.sess.run(assign_ops, feed_dict=feed_dict)
@@ -74,11 +74,11 @@ class TFModel(NNModel, metaclass=TfModelMeta):
         path = str(self.save_path.resolve())
         log.info('[saving model to {}]'.format(path))
         var_list = self._get_saveable_variables(exclude_scopes)
-        saver = tf.train.Saver(var_list)
+        saver = tf.compat.v1.train.Saver(var_list)
         saver.save(self.sess, path)
 
     def serialize(self) -> Tuple[Tuple[str, np.ndarray], ...]:
-        tf_vars = tf.global_variables()
+        tf_vars = tf.compat.v1.global_variables()
         values = self.sess.run(tf_vars)
         return tuple(zip([var.name for var in tf_vars], values))
 
@@ -91,7 +91,7 @@ class TFModel(NNModel, metaclass=TfModelMeta):
 
     @staticmethod
     def _get_trainable_variables(exclude_scopes=tuple()):
-        all_vars = tf.global_variables()
+        all_vars = tf.compat.v1.global_variables()
         vars_to_train = [var for var in all_vars if all(sc not in var.name for sc in exclude_scopes)]
         return vars_to_train
 
@@ -119,22 +119,22 @@ class TFModel(NNModel, metaclass=TfModelMeta):
             train_op
         """
         if optimizer_scope_name is None:
-            opt_scope = tf.variable_scope('Optimizer')
+            opt_scope = tf.compat.v1.variable_scope('Optimizer')
         else:
-            opt_scope = tf.variable_scope(optimizer_scope_name)
+            opt_scope = tf.compat.v1.variable_scope(optimizer_scope_name)
         with opt_scope:
             if learnable_scopes is None:
-                variables_to_train = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+                variables_to_train = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES)
             else:
                 variables_to_train = []
                 for scope_name in learnable_scopes:
-                    variables_to_train.extend(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope_name))
+                    variables_to_train.extend(tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope=scope_name))
 
             if optimizer is None:
-                optimizer = tf.train.AdamOptimizer
+                optimizer = tf.compat.v1.train.AdamOptimizer
 
             # For batch norm it is necessary to update running averages
-            extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+            extra_update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
             with tf.control_dependencies(extra_update_ops):
 
                 def clip_if_not_none(grad):
@@ -155,7 +155,7 @@ class TFModel(NNModel, metaclass=TfModelMeta):
         Print number of *trainable* parameters in the network
         """
         log.info('Number of parameters: ')
-        variables = tf.trainable_variables()
+        variables = tf.compat.v1.trainable_variables()
         blocks = defaultdict(int)
         for var in variables:
             # Get the top level scope name of variable
@@ -181,18 +181,19 @@ class LRScheduledTFModel(TFModel, LRScheduledModel):
     """
 
     def __init__(self,
-                 optimizer: str = 'AdamOptimizer',
+                 optimizer: str = 'tf.optimizers:Adam',
                  clip_norm: float = None,
                  momentum: float = None,
                  **kwargs) -> None:
         TFModel.__init__(self, **kwargs)
-
         try:
-            self._optimizer = cls_from_str(optimizer)
+            opt = cls_from_str(optimizer)
         except Exception:
-            self._optimizer = getattr(tf.train, optimizer.split(':')[-1])
-        if not issubclass(self._optimizer, tf.train.Optimizer):
-            raise ConfigError("`optimizer` should be tensorflow.train.Optimizer subclass")
+            opt = getattr(tf.optimizers, optimizer.split(':')[-1])
+        self._optimizer = opt
+        # todo: check issubclass tf.optimizers.Adam in tensorflow.python.keras.optimizer_v2.adam
+        #if not issubclass(self._optimizer, tf.compat.v1.train.Optimizer):
+        #    raise ConfigError("`optimizer` should be tensorflow.train.Optimizer subclass")
         self._clip_norm = clip_norm
 
         LRScheduledModel.__init__(self, momentum=momentum, **kwargs)
@@ -208,17 +209,17 @@ class LRScheduledTFModel(TFModel, LRScheduledModel):
     @overrides
     def _update_graph_variables(self, learning_rate=None, momentum=None):
         if learning_rate is not None:
-            self.sess.run(tf.assign(self._lr_var, learning_rate))
+            self.sess.run(tf.compat.v1.assign(self._lr_var, learning_rate))
             # log.info(f"Learning rate = {learning_rate}")
         if momentum is not None:
-            self.sess.run(tf.assign(self._mom_var, momentum))
+            self.sess.run(tf.compat.v1.assign(self._mom_var, momentum))
             # log.info(f"Momentum      = {momentum}")
 
     def get_train_op(self,
                      loss,
-                     learning_rate: Union[float, tf.placeholder] = None,
-                     optimizer: tf.train.Optimizer = None,
-                     momentum: Union[float, tf.placeholder] = None,
+                     learning_rate: Union[float, tf.compat.v1.placeholder] = None,
+                     optimizer: tf.compat.v1.train.Optimizer = None,
+                     momentum: Union[float, tf.compat.v1.placeholder] = None,
                      clip_norm: float = None,
                      **kwargs):
         if learning_rate is not None:
@@ -229,9 +230,9 @@ class LRScheduledTFModel(TFModel, LRScheduledModel):
         kwargs['clip_norm'] = clip_norm or self._clip_norm
 
         momentum_param = 'momentum'
-        if kwargs['optimizer'] == tf.train.AdamOptimizer:
+        if kwargs['optimizer'] == tf.compat.v1.train.AdamOptimizer:
             momentum_param = 'beta1'
-        elif kwargs['optimizer'] == tf.train.AdadeltaOptimizer:
+        elif kwargs['optimizer'] == tf.compat.v1.train.AdadeltaOptimizer:
             momentum_param = 'rho'
 
         if momentum is not None:

@@ -102,7 +102,7 @@ class BidirectionalLanguageModel(object):
                     use_character_inputs=self._use_character_inputs,
                     max_batch_size=self._max_batch_size)
             else:
-                with tf.variable_scope('', reuse=True):
+                with tf.compat.v1.variable_scope('', reuse=True):
                     lm_graph = BidirectionalLanguageModelGraph(
                         self._options,
                         self._weight_file,
@@ -142,15 +142,15 @@ class BidirectionalLanguageModel(object):
             for layer in layers:
                 layer_wo_bos_eos = layer[:, 1:, :]
                 layer_wo_bos_eos = tf.reverse_sequence(
-                    layer_wo_bos_eos,
-                    lm_graph.sequence_lengths - 1,
+                    input=layer_wo_bos_eos,
+                    seq_lengths=lm_graph.sequence_lengths - 1,
                     seq_axis=1,
                     batch_axis=0,
                 )
                 layer_wo_bos_eos = layer_wo_bos_eos[:, 1:, :]
                 layer_wo_bos_eos = tf.reverse_sequence(
-                    layer_wo_bos_eos,
-                    sequence_length_wo_bos_eos,
+                    input=layer_wo_bos_eos,
+                    seq_lengths=sequence_length_wo_bos_eos,
                     seq_axis=1,
                     batch_axis=0,
                 )
@@ -167,15 +167,15 @@ class BidirectionalLanguageModel(object):
             # to int then back
             mask_wo_bos_eos = tf.cast(lm_graph.mask[:, 1:], 'int32')
             mask_wo_bos_eos = tf.reverse_sequence(
-                mask_wo_bos_eos,
-                lm_graph.sequence_lengths - 1,
+                input=mask_wo_bos_eos,
+                seq_lengths=lm_graph.sequence_lengths - 1,
                 seq_axis=1,
                 batch_axis=0,
             )
             mask_wo_bos_eos = mask_wo_bos_eos[:, 1:]
             mask_wo_bos_eos = tf.reverse_sequence(
-                mask_wo_bos_eos,
-                sequence_length_wo_bos_eos,
+                input=mask_wo_bos_eos,
+                seq_lengths=sequence_length_wo_bos_eos,
                 seq_axis=1,
                 batch_axis=0,
             )
@@ -280,7 +280,7 @@ class BidirectionalLanguageModelGraph(object):
         else:
             self._n_tokens_vocab = None
 
-        with tf.variable_scope('bilm', custom_getter=custom_getter):
+        with tf.compat.v1.variable_scope('bilm', custom_getter=custom_getter):
             self._build()
 
     def _build(self):
@@ -337,16 +337,16 @@ class BidirectionalLanguageModelGraph(object):
 
         # the character embeddings
         with tf.device("/cpu:0"):
-            self.embedding_weights = tf.get_variable("char_embed", [n_chars, char_embed_dim],
+            self.embedding_weights = tf.compat.v1.get_variable("char_embed", [n_chars, char_embed_dim],
                                                      dtype=DTYPE,
-                                                     initializer=tf.random_uniform_initializer(-1.0, 1.0))
+                                                     initializer=tf.compat.v1.random_uniform_initializer(-1.0, 1.0))
             # shape (batch_size, unroll_steps, max_chars, embed_dim)
-            self.char_embedding = tf.nn.embedding_lookup(self.embedding_weights,
-                                                         self.ids_placeholder)
+            self.char_embedding = tf.nn.embedding_lookup(params=self.embedding_weights,
+                                                         ids=self.ids_placeholder)
 
         # the convolutions
         def make_convolutions(inp):
-            with tf.variable_scope('CNN'):
+            with tf.compat.v1.variable_scope('CNN'):
                 convolutions = []
                 for i, (width, num) in enumerate(filters):
                     if cnn_options['activation'] == 'relu':
@@ -358,33 +358,33 @@ class BidirectionalLanguageModelGraph(object):
                         # )
 
                         # Kim et al 2015, +/- 0.05
-                        w_init = tf.random_uniform_initializer(
+                        w_init = tf.compat.v1.random_uniform_initializer(
                             minval=-0.05, maxval=0.05)
                     elif cnn_options['activation'] == 'tanh':
                         # glorot init
-                        w_init = tf.random_normal_initializer(
+                        w_init = tf.compat.v1.random_normal_initializer(
                             mean=0.0,
                             stddev=np.sqrt(1.0 / (width * char_embed_dim))
                         )
-                    w = tf.get_variable(
+                    w = tf.compat.v1.get_variable(
                         "W_cnn_%s" % i,
                         [1, width, char_embed_dim, num],
                         initializer=w_init,
                         dtype=DTYPE)
-                    b = tf.get_variable(
+                    b = tf.compat.v1.get_variable(
                         "b_cnn_%s" % i, [num], dtype=DTYPE,
-                        initializer=tf.constant_initializer(0.0))
+                        initializer=tf.compat.v1.constant_initializer(0.0))
 
-                    conv = tf.nn.conv2d(inp, w,
+                    conv = tf.nn.conv2d(input=inp, filters=w,
                                         strides=[1, 1, 1, 1],
                                         padding="VALID") + b
                     # now max pool
-                    conv = tf.nn.max_pool(conv, [1, 1, max_chars - width + 1, 1],
-                                          [1, 1, 1, 1], 'VALID')
+                    conv = tf.nn.max_pool2d(input=conv, ksize=[1, 1, max_chars - width + 1, 1],
+                                          strides=[1, 1, 1, 1], padding='VALID')
 
                     # activation
                     conv = activation(conv)
-                    conv = tf.squeeze(conv, squeeze_dims=[2])
+                    conv = tf.squeeze(conv, axis=[2])
 
                     convolutions.append(conv)
 
@@ -399,21 +399,21 @@ class BidirectionalLanguageModelGraph(object):
 
         if use_highway or use_proj:
             #   reshape from (batch_size, n_tokens, dim) to (-1, dim)
-            batch_size_n_tokens = tf.shape(embedding)[0:2]
+            batch_size_n_tokens = tf.shape(input=embedding)[0:2]
             embedding = tf.reshape(embedding, [-1, n_filters])
 
         # set up weights for projection
         if use_proj:
             assert n_filters > projection_dim
-            with tf.variable_scope('CNN_proj'):
-                W_proj_cnn = tf.get_variable(
+            with tf.compat.v1.variable_scope('CNN_proj'):
+                W_proj_cnn = tf.compat.v1.get_variable(
                     "W_proj", [n_filters, projection_dim],
-                    initializer=tf.random_normal_initializer(
+                    initializer=tf.compat.v1.random_normal_initializer(
                         mean=0.0, stddev=np.sqrt(1.0 / n_filters)),
                     dtype=DTYPE)
-                b_proj_cnn = tf.get_variable(
+                b_proj_cnn = tf.compat.v1.get_variable(
                     "b_proj", [projection_dim],
-                    initializer=tf.constant_initializer(0.0),
+                    initializer=tf.compat.v1.constant_initializer(0.0),
                     dtype=DTYPE)
 
         # apply highways layers
@@ -426,25 +426,25 @@ class BidirectionalLanguageModelGraph(object):
             highway_dim = n_filters
 
             for i in range(n_highway):
-                with tf.variable_scope('CNN_high_%s' % i):
-                    W_carry = tf.get_variable(
+                with tf.compat.v1.variable_scope('CNN_high_%s' % i):
+                    W_carry = tf.compat.v1.get_variable(
                         'W_carry', [highway_dim, highway_dim],
                         # glorit init
-                        initializer=tf.random_normal_initializer(
+                        initializer=tf.compat.v1.random_normal_initializer(
                             mean=0.0, stddev=np.sqrt(1.0 / highway_dim)),
                         dtype=DTYPE)
-                    b_carry = tf.get_variable(
+                    b_carry = tf.compat.v1.get_variable(
                         'b_carry', [highway_dim],
-                        initializer=tf.constant_initializer(-2.0),
+                        initializer=tf.compat.v1.constant_initializer(-2.0),
                         dtype=DTYPE)
-                    W_transform = tf.get_variable(
+                    W_transform = tf.compat.v1.get_variable(
                         'W_transform', [highway_dim, highway_dim],
-                        initializer=tf.random_normal_initializer(
+                        initializer=tf.compat.v1.random_normal_initializer(
                             mean=0.0, stddev=np.sqrt(1.0 / highway_dim)),
                         dtype=DTYPE)
-                    b_transform = tf.get_variable(
+                    b_transform = tf.compat.v1.get_variable(
                         'b_transform', [highway_dim],
-                        initializer=tf.constant_initializer(0.0),
+                        initializer=tf.compat.v1.constant_initializer(0.0),
                         dtype=DTYPE)
 
                 embedding = high(embedding, W_carry, b_carry,
@@ -467,12 +467,12 @@ class BidirectionalLanguageModelGraph(object):
 
         # the word embeddings
         with tf.device("/cpu:0"):
-            self.embedding_weights = tf.get_variable(
+            self.embedding_weights = tf.compat.v1.get_variable(
                 "embedding", [self._n_tokens_vocab, projection_dim],
                 dtype=DTYPE,
             )
-            self.embedding = tf.nn.embedding_lookup(self.embedding_weights,
-                                                    self.ids_placeholder)
+            self.embedding = tf.nn.embedding_lookup(params=self.embedding_weights,
+                                                    ids=self.ids_placeholder)
 
     def _build_lstms(self):
         # now the LSTMs
@@ -489,11 +489,11 @@ class BidirectionalLanguageModelGraph(object):
 
         # the sequence lengths from input mask
         if self.use_character_inputs:
-            mask = tf.reduce_any(self.ids_placeholder > 0, axis=2)
+            mask = tf.reduce_any(input_tensor=self.ids_placeholder > 0, axis=2)
         else:
             mask = self.ids_placeholder > 0
-        sequence_lengths = tf.reduce_sum(tf.cast(mask, tf.int32), axis=1)
-        batch_size = tf.shape(sequence_lengths)[0]
+        sequence_lengths = tf.reduce_sum(input_tensor=tf.cast(mask, tf.int32), axis=1)
+        batch_size = tf.shape(input=sequence_lengths)[0]
 
         # for each direction, we'll store tensors for each layer
         self.lstm_outputs = {'forward': [], 'backward': []}
@@ -507,8 +507,8 @@ class BidirectionalLanguageModelGraph(object):
                 layer_input = self.embedding
             else:
                 layer_input = tf.reverse_sequence(
-                    self.embedding,
-                    sequence_lengths,
+                    input=self.embedding,
+                    seq_lengths=sequence_lengths,
                     seq_axis=1,
                     batch_axis=0
                 )
@@ -516,11 +516,11 @@ class BidirectionalLanguageModelGraph(object):
             for i in range(n_lstm_layers):
                 if projection_dim < lstm_dim:
                     # are projecting down output
-                    lstm_cell = tf.nn.rnn_cell.LSTMCell(
+                    lstm_cell = tf.compat.v1.nn.rnn_cell.LSTMCell(
                         lstm_dim, num_proj=projection_dim,
                         cell_clip=cell_clip, proj_clip=proj_clip)
                 else:
-                    lstm_cell = tf.nn.rnn_cell.LSTMCell(lstm_dim,
+                    lstm_cell = tf.compat.v1.nn.rnn_cell.LSTMCell(lstm_dim,
                                                         cell_clip=cell_clip, proj_clip=proj_clip)
 
                 if use_skip_connections:
@@ -531,7 +531,7 @@ class BidirectionalLanguageModelGraph(object):
                         pass
                     else:
                         # add a skip connection
-                        lstm_cell = tf.nn.rnn_cell.ResidualWrapper(lstm_cell)
+                        lstm_cell = tf.compat.v1.nn.rnn_cell.ResidualWrapper(lstm_cell)
 
                 # collect the input state, run the dynamic rnn, collect
                 # the output
@@ -555,12 +555,12 @@ class BidirectionalLanguageModelGraph(object):
                     i_direction = 1
                 variable_scope_name = 'RNN_{0}/RNN/MultiRNNCell/Cell{1}'.format(
                     i_direction, i)
-                with tf.variable_scope(variable_scope_name):
-                    layer_output, final_state = tf.nn.dynamic_rnn(
+                with tf.compat.v1.variable_scope(variable_scope_name):
+                    layer_output, final_state = tf.compat.v1.nn.dynamic_rnn(
                         lstm_cell,
                         layer_input,
                         sequence_length=sequence_lengths,
-                        initial_state=tf.nn.rnn_cell.LSTMStateTuple(
+                        initial_state=tf.compat.v1.nn.rnn_cell.LSTMStateTuple(
                             *batch_init_states),
                     )
 
@@ -572,8 +572,8 @@ class BidirectionalLanguageModelGraph(object):
                 else:
                     self.lstm_outputs[direction].append(
                         tf.reverse_sequence(
-                            layer_output,
-                            sequence_lengths,
+                            input=layer_output,
+                            seq_lengths=sequence_lengths,
                             seq_axis=1,
                             batch_axis=0
                         )
@@ -585,7 +585,7 @@ class BidirectionalLanguageModelGraph(object):
                         new_state = tf.concat(
                             [final_state[i][:batch_size, :],
                              init_states[i][batch_size:, :]], axis=0)
-                        state_update_op = tf.assign(init_states[i], new_state)
+                        state_update_op = tf.compat.v1.assign(init_states[i], new_state)
                         update_ops.append(state_update_op)
 
                 layer_input = layer_output
@@ -627,7 +627,7 @@ def weight_layers(name, bilm_ops, l2_coef=None,
 
     def _l2_regularizer(weights):
         if l2_coef is not None:
-            return l2_coef * tf.reduce_sum(tf.square(weights))
+            return l2_coef * tf.reduce_sum(input_tensor=tf.square(weights))
         else:
             return 0.0
 
@@ -647,9 +647,9 @@ def weight_layers(name, bilm_ops, l2_coef=None,
         def _do_ln(x):
             # do layer normalization excluding the mask
             x_masked = x * broadcast_mask
-            N = tf.reduce_sum(mask_float) * lm_dim
-            mean = tf.reduce_sum(x_masked) / N
-            variance = tf.reduce_sum(((x_masked - mean) * broadcast_mask) ** 2) / N
+            N = tf.reduce_sum(input_tensor=mask_float) * lm_dim
+            mean = tf.reduce_sum(input_tensor=x_masked) / N
+            variance = tf.reduce_sum(input_tensor=((x_masked - mean) * broadcast_mask) ** 2) / N
             return tf.nn.batch_normalization(
                 x, mean, variance, None, None, 1E-12
             )
@@ -657,15 +657,15 @@ def weight_layers(name, bilm_ops, l2_coef=None,
         if use_top_only:
             layers = tf.split(lm_embeddings, n_lm_layers, axis=1)
             # just the top layer
-            sum_pieces = tf.squeeze(layers[-1], squeeze_dims=1)
+            sum_pieces = tf.squeeze(layers[-1], axis=1)
             # no regularization
             reg = 0.0
         else:
-            with tf.variable_scope("aggregation", reuse=reuse):
-                W = tf.get_variable(
+            with tf.compat.v1.variable_scope("aggregation", reuse=reuse):
+                W = tf.compat.v1.get_variable(
                     '{}_ELMo_W'.format(name),
                     shape=(n_lm_layers,),
-                    initializer=tf.zeros_initializer,
+                    initializer=tf.compat.v1.zeros_initializer,
                     regularizer=_l2_regularizer,
                     trainable=True,
                 )
@@ -681,14 +681,14 @@ def weight_layers(name, bilm_ops, l2_coef=None,
             pieces = []
             for w, t in zip(normed_weights, layers):
                 if do_layer_norm:
-                    pieces.append(w * _do_ln(tf.squeeze(t, squeeze_dims=1)))
+                    pieces.append(w * _do_ln(tf.squeeze(t, axis=1)))
                 else:
-                    pieces.append(w * tf.squeeze(t, squeeze_dims=1))
+                    pieces.append(w * tf.squeeze(t, axis=1))
             sum_pieces = tf.add_n(pieces)
 
             # get the regularizer
             reg = [
-                r for r in tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+                r for r in tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.REGULARIZATION_LOSSES)
                 if r.name.find('{}_ELMo_W/'.format(name)) >= 0
             ]
             if len(reg) != 1:
@@ -696,11 +696,11 @@ def weight_layers(name, bilm_ops, l2_coef=None,
 
         # scale the weighted sum by gamma
 
-        with tf.variable_scope("aggregation", reuse=reuse):
-            gamma = tf.get_variable(
+        with tf.compat.v1.variable_scope("aggregation", reuse=reuse):
+            gamma = tf.compat.v1.get_variable(
                 '{}_ELMo_gamma'.format(name),
                 shape=(1,),
-                initializer=tf.ones_initializer,
+                initializer=tf.compat.v1.ones_initializer,
                 regularizer=None,
                 trainable=True,
             )
@@ -708,9 +708,9 @@ def weight_layers(name, bilm_ops, l2_coef=None,
         weighted_lm_layers = sum_pieces * gamma
         weighted_lm_layers_masked = sum_pieces * broadcast_mask
 
-        weighted_lm_layers_sum = tf.reduce_sum(weighted_lm_layers_masked, 1)
+        weighted_lm_layers_sum = tf.reduce_sum(input_tensor=weighted_lm_layers_masked, axis=1)
 
-        mask_sum = tf.reduce_sum(mask_float, 1)
+        mask_sum = tf.reduce_sum(input_tensor=mask_float, axis=1)
         mask_sum = tf.maximum(mask_sum, [1])
 
         weighted_lm_layers_mean = weighted_lm_layers_sum / tf.expand_dims(mask_sum, - 1)

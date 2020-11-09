@@ -52,13 +52,13 @@ def token_from_subtoken(units: tf.Tensor, mask: tf.Tensor) -> tf.Tensor:
 
             the shape of this tensor will be [batch_size, TOKEN_seq_length, n_features]
     """
-    shape = tf.cast(tf.shape(units), tf.int64)
+    shape = tf.cast(tf.shape(input=units), tf.int64)
     batch_size = shape[0]
     nf = shape[2]
     nf_int = units.get_shape().as_list()[-1]
 
     # number of TOKENS in each sentence
-    token_seq_lengths = tf.cast(tf.reduce_sum(mask, 1), tf.int64)
+    token_seq_lengths = tf.cast(tf.reduce_sum(input_tensor=mask, axis=1), tf.int64)
     # for a matrix m =
     # [[1, 1, 1],
     #  [0, 1, 1],
@@ -66,13 +66,13 @@ def token_from_subtoken(units: tf.Tensor, mask: tf.Tensor) -> tf.Tensor:
     # it will be
     # [3, 2, 1]
 
-    n_words = tf.reduce_sum(token_seq_lengths)
+    n_words = tf.reduce_sum(input_tensor=token_seq_lengths)
     # n_words -> 6
 
-    max_token_seq_len = tf.cast(tf.reduce_max(token_seq_lengths), tf.int64)
+    max_token_seq_len = tf.cast(tf.reduce_max(input_tensor=token_seq_lengths), tf.int64)
     # max_token_seq_len -> 3
 
-    idxs = tf.where(mask)
+    idxs = tf.compat.v1.where(mask)
     # for the matrix mentioned above
     # tf.where(mask) ->
     # [[0, 0],
@@ -82,7 +82,7 @@ def token_from_subtoken(units: tf.Tensor, mask: tf.Tensor) -> tf.Tensor:
     #  [1, 2]
     #  [2, 0]]
 
-    sample_ids_in_batch = tf.pad(idxs[:, 0], [[1, 0]])
+    sample_ids_in_batch = tf.pad(tensor=idxs[:, 0], paddings=[[1, 0]])
     # for indices
     # [[0, 0],
     #  [0, 1]
@@ -102,7 +102,7 @@ def token_from_subtoken(units: tf.Tensor, mask: tf.Tensor) -> tf.Tensor:
     # transforming sample start masks to the sample starts themselves
     q = a * tf.cast(tf.range(n_words), tf.int64)
     # [0, 0, 0, 3, 0, 5]
-    count_to_substract = tf.pad(tf.boolean_mask(q, q), [(1, 0)])
+    count_to_substract = tf.pad(tensor=tf.boolean_mask(tensor=q, mask=q), paddings=[(1, 0)])
     # [0, 3, 5]
 
     new_word_indices = tf.cast(tf.range(n_words), tf.int64) - tf.gather(count_to_substract, tf.cumsum(a))
@@ -115,7 +115,7 @@ def token_from_subtoken(units: tf.Tensor, mask: tf.Tensor) -> tf.Tensor:
 
     n_total_word_elements = tf.cast(batch_size * max_token_seq_len, tf.int32)
     word_indices_flat = tf.cast(idxs[:, 0] * max_token_seq_len + new_word_indices, tf.int32)
-    x_mask = tf.reduce_sum(tf.one_hot(word_indices_flat, n_total_word_elements), 0)
+    x_mask = tf.reduce_sum(input_tensor=tf.one_hot(word_indices_flat, n_total_word_elements), axis=0)
     x_mask = tf.cast(x_mask, tf.bool)
     # to get absolute indices we add max_token_seq_len:
     # idxs[:, 0] * max_token_seq_len -> [0, 0, 0, 1, 1, 2] * 2 = [0, 0, 0, 3, 3, 6]
@@ -133,7 +133,7 @@ def token_from_subtoken(units: tf.Tensor, mask: tf.Tensor) -> tf.Tensor:
 
     full_range = tf.cast(tf.range(batch_size * max_token_seq_len), tf.int32)
     # full_range -> [0, 1, 2, 3, 4, 5, 6, 7, 8]
-    nonword_indices_flat = tf.boolean_mask(full_range, tf.math.logical_not(x_mask))
+    nonword_indices_flat = tf.boolean_mask(tensor=full_range, mask=tf.math.logical_not(x_mask))
     # # y_idxs -> [5, 7, 8]
 
     # get a sequence of units corresponding to the start subtokens of the words
@@ -142,7 +142,7 @@ def token_from_subtoken(units: tf.Tensor, mask: tf.Tensor) -> tf.Tensor:
 
     # prepare zeros for paddings
     # size: [batch_size * TOKEN_seq_length - n_words, n_features]
-    paddings = tf.zeros(tf.stack([tf.reduce_sum(max_token_seq_len - token_seq_lengths),
+    paddings = tf.zeros(tf.stack([tf.reduce_sum(input_tensor=max_token_seq_len - token_seq_lengths),
                                   nf], 0), tf.float32)
 
     tensor_flat = tf.dynamic_stitch([word_indices_flat, nonword_indices_flat],
@@ -233,26 +233,26 @@ class BertSequenceNetwork(LRScheduledTFModel):
         if hidden_keep_prob is not None:
             self.bert_config.hidden_dropout_prob = 1.0 - hidden_keep_prob
 
-        self.sess_config = tf.ConfigProto(allow_soft_placement=True)
+        self.sess_config = tf.compat.v1.ConfigProto(allow_soft_placement=True)
         self.sess_config.gpu_options.allow_growth = True
-        self.sess = tf.Session(config=self.sess_config)
+        self.sess = tf.compat.v1.Session(config=self.sess_config)
 
         self._init_graph()
 
         self._init_optimizer()
 
-        self.sess.run(tf.global_variables_initializer())
+        self.sess.run(tf.compat.v1.global_variables_initializer())
 
         if pretrained_bert is not None:
             pretrained_bert = str(expand_path(pretrained_bert))
 
-            if tf.train.checkpoint_exists(pretrained_bert) \
-                    and not (self.load_path and tf.train.checkpoint_exists(str(self.load_path.resolve()))):
+            if tf.compat.v1.train.checkpoint_exists(pretrained_bert) \
+                    and not (self.load_path and tf.compat.v1.train.checkpoint_exists(str(self.load_path.resolve()))):
                 log.info('[initializing model with Bert from {}]'.format(pretrained_bert))
                 # Exclude optimizer and classification variables from saved variables
                 var_list = self._get_saveable_variables(
                     exclude_scopes=('Optimizer', 'learning_rate', 'momentum', 'ner', 'EMA'))
-                saver = tf.train.Saver(var_list)
+                saver = tf.compat.v1.train.Saver(var_list)
                 saver.restore(self.sess, pretrained_bert)
 
         if self.load_path is not None:
@@ -262,7 +262,7 @@ class BertSequenceNetwork(LRScheduledTFModel):
             self.sess.run(self.ema.init_op)
 
     def _init_graph(self) -> None:
-        self.seq_lengths = tf.reduce_sum(self.y_masks_ph, axis=1)
+        self.seq_lengths = tf.reduce_sum(input_tensor=self.y_masks_ph, axis=1)
 
         self.bert = BertModel(config=self.bert_config,
                               is_training=self.is_train_ph,
@@ -271,20 +271,20 @@ class BertSequenceNetwork(LRScheduledTFModel):
                               token_type_ids=self.token_types_ph,
                               use_one_hot_embeddings=False)
 
-        with tf.variable_scope('ner'):
-            layer_weights = tf.get_variable('layer_weights_',
+        with tf.compat.v1.variable_scope('ner'):
+            layer_weights = tf.compat.v1.get_variable('layer_weights_',
                                             shape=len(self.encoder_layer_ids),
-                                            initializer=tf.ones_initializer(),
+                                            initializer=tf.compat.v1.ones_initializer(),
                                             trainable=True)
             layer_mask = tf.ones_like(layer_weights)
-            layer_mask = tf.nn.dropout(layer_mask, self.encoder_keep_prob_ph)
+            layer_mask = tf.nn.dropout(layer_mask, 1 - (self.encoder_keep_prob_ph))
             layer_weights *= layer_mask
             # to prevent zero division
-            mask_sum = tf.maximum(tf.reduce_sum(layer_mask), 1.0)
+            mask_sum = tf.maximum(tf.reduce_sum(input_tensor=layer_mask), 1.0)
             layer_weights = tf.unstack(layer_weights / mask_sum)
             # TODO: may be stack and reduce_sum is faster
             units = sum(w * l for w, l in zip(layer_weights, self.encoder_layers()))
-            units = tf.nn.dropout(units, keep_prob=self.keep_prob_ph)
+            units = tf.nn.dropout(units, rate=1 - (self.keep_prob_ph))
         return units
 
     def _get_tag_mask(self) -> tf.Tensor:
@@ -292,7 +292,7 @@ class BertSequenceNetwork(LRScheduledTFModel):
         Returns: tag_mask,
             a mask that selects positions corresponding to word tokens (not padding and `CLS`)
         """
-        max_length = tf.reduce_max(self.seq_lengths)
+        max_length = tf.reduce_max(input_tensor=self.seq_lengths)
         one_hot_max_len = tf.one_hot(self.seq_lengths - 1, max_length)
         tag_mask = tf.cumsum(one_hot_max_len[:, ::-1], axis=1)[:, ::-1]
         return tag_mask
@@ -304,27 +304,27 @@ class BertSequenceNetwork(LRScheduledTFModel):
         return [self.bert.all_encoder_layers[i] for i in self.encoder_layer_ids]
 
     def _init_placeholders(self) -> None:
-        self.input_ids_ph = tf.placeholder(shape=(None, None),
+        self.input_ids_ph = tf.compat.v1.placeholder(shape=(None, None),
                                            dtype=tf.int32,
                                            name='token_indices_ph')
-        self.input_masks_ph = tf.placeholder(shape=(None, None),
+        self.input_masks_ph = tf.compat.v1.placeholder(shape=(None, None),
                                              dtype=tf.int32,
                                              name='token_mask_ph')
         self.token_types_ph = \
-            tf.placeholder_with_default(tf.zeros_like(self.input_ids_ph, dtype=tf.int32),
+            tf.compat.v1.placeholder_with_default(tf.zeros_like(self.input_ids_ph, dtype=tf.int32),
                                         shape=self.input_ids_ph.shape,
                                         name='token_types_ph')
-        self.learning_rate_ph = tf.placeholder_with_default(0.0, shape=[], name='learning_rate_ph')
-        self.keep_prob_ph = tf.placeholder_with_default(1.0, shape=[], name='keep_prob_ph')
-        self.encoder_keep_prob_ph = tf.placeholder_with_default(1.0, shape=[], name='encoder_keep_prob_ph')
-        self.is_train_ph = tf.placeholder_with_default(False, shape=[], name='is_train_ph')
+        self.learning_rate_ph = tf.compat.v1.placeholder_with_default(0.0, shape=[], name='learning_rate_ph')
+        self.keep_prob_ph = tf.compat.v1.placeholder_with_default(1.0, shape=[], name='keep_prob_ph')
+        self.encoder_keep_prob_ph = tf.compat.v1.placeholder_with_default(1.0, shape=[], name='encoder_keep_prob_ph')
+        self.is_train_ph = tf.compat.v1.placeholder_with_default(False, shape=[], name='is_train_ph')
 
     def _init_optimizer(self) -> None:
-        with tf.variable_scope('Optimizer'):
-            self.global_step = tf.get_variable('global_step',
+        with tf.compat.v1.variable_scope('Optimizer'):
+            self.global_step = tf.compat.v1.get_variable('global_step',
                                                shape=[],
                                                dtype=tf.int32,
-                                               initializer=tf.constant_initializer(0),
+                                               initializer=tf.compat.v1.constant_initializer(0),
                                                trainable=False)
             # default optimizer for Bert is Adam with fixed L2 regularization
 
@@ -348,7 +348,7 @@ class BertSequenceNetwork(LRScheduledTFModel):
                                               optimizer_scope_name='Optimizer')
 
         if self.optimizer is None:
-            with tf.variable_scope('Optimizer'):
+            with tf.compat.v1.variable_scope('Optimizer'):
                 new_global_step = self.global_step + 1
                 self.train_op = tf.group(self.train_op, [self.global_step.assign(new_global_step)])
 
@@ -533,7 +533,7 @@ class BertSequenceTagger(BertSequenceNetwork):
 
         units = super()._init_graph()
 
-        with tf.variable_scope('ner'):
+        with tf.compat.v1.variable_scope('ner'):
             if self.use_birnn:
                 units, _ = bi_rnn(units,
                                   self.birnn_hidden_size,
@@ -542,15 +542,15 @@ class BertSequenceTagger(BertSequenceNetwork):
                                   name='birnn')
                 units = tf.concat(units, -1)
             # TODO: maybe add one more layer?
-            logits = tf.layers.dense(units, units=self.n_tags, name="output_dense")
+            logits = tf.compat.v1.layers.dense(units, units=self.n_tags, name="output_dense")
 
             self.logits = token_from_subtoken(logits, self.y_masks_ph)
 
             # CRF
             if self.use_crf:
-                transition_params = tf.get_variable('Transition_Params',
+                transition_params = tf.compat.v1.get_variable('Transition_Params',
                                                     shape=[self.n_tags, self.n_tags],
-                                                    initializer=tf.zeros_initializer())
+                                                    initializer=tf.compat.v1.zeros_initializer())
                 log_likelihood, transition_params = \
                     tf.contrib.crf.crf_log_likelihood(self.logits,
                                                       self.y_ph,
@@ -559,23 +559,23 @@ class BertSequenceTagger(BertSequenceNetwork):
                 loss_tensor = -log_likelihood
                 self._transition_params = transition_params
 
-            self.y_predictions = tf.argmax(self.logits, -1)
+            self.y_predictions = tf.argmax(input=self.logits, axis=-1)
             self.y_probas = tf.nn.softmax(self.logits, axis=2)
 
-        with tf.variable_scope("loss"):
+        with tf.compat.v1.variable_scope("loss"):
             tag_mask = self._get_tag_mask()
             y_mask = tf.cast(tag_mask, tf.float32)
             if self.use_crf:
-                self.loss = tf.reduce_mean(loss_tensor)
+                self.loss = tf.reduce_mean(input_tensor=loss_tensor)
             else:
-                self.loss = tf.losses.sparse_softmax_cross_entropy(labels=self.y_ph,
+                self.loss = tf.compat.v1.losses.sparse_softmax_cross_entropy(labels=self.y_ph,
                                                                    logits=self.logits,
                                                                    weights=y_mask)
 
     def _init_placeholders(self) -> None:
         super()._init_placeholders()
-        self.y_ph = tf.placeholder(shape=(None, None), dtype=tf.int32, name='y_ph')
-        self.y_masks_ph = tf.placeholder(shape=(None, None),
+        self.y_ph = tf.compat.v1.placeholder(shape=(None, None), dtype=tf.int32, name='y_ph')
+        self.y_masks_ph = tf.compat.v1.placeholder(shape=(None, None),
                                          dtype=tf.int32,
                                          name='y_mask_ph')
 
@@ -642,32 +642,32 @@ class ExponentialMovingAverage:
               minimize_op: tf.Tensor,
               update_vars: List[tf.Variable] = None,
               name: str = "EMA") -> tf.Tensor:
-        with tf.variable_scope(name):
+        with tf.compat.v1.variable_scope(name):
             if update_vars is None:
-                update_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+                update_vars = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES)
 
             with tf.control_dependencies([minimize_op]):
                 minimize_op = self.ema.apply(update_vars)
 
             with tf.device(self.var_device_name):
                 # Make backup variables
-                with tf.variable_scope('BackupVariables'):
-                    backup_vars = [tf.get_variable(var.op.name,
+                with tf.compat.v1.variable_scope('BackupVariables'):
+                    backup_vars = [tf.compat.v1.get_variable(var.op.name,
                                                    dtype=var.value().dtype,
                                                    trainable=False,
                                                    initializer=var.initialized_value())
                                    for var in update_vars]
 
                 def ema_to_weights():
-                    return tf.group(*(tf.assign(var, self.ema.average(var).read_value())
+                    return tf.group(*(tf.compat.v1.assign(var, self.ema.average(var).read_value())
                                       for var in update_vars))
 
                 def save_weight_backups():
-                    return tf.group(*(tf.assign(bck, var.read_value())
+                    return tf.group(*(tf.compat.v1.assign(bck, var.read_value())
                                       for var, bck in zip(update_vars, backup_vars)))
 
                 def restore_weight_backups():
-                    return tf.group(*(tf.assign(var, bck.read_value())
+                    return tf.group(*(tf.compat.v1.assign(var, bck.read_value())
                                       for var, bck in zip(update_vars, backup_vars)))
 
                 train_switch_op = restore_weight_backups()

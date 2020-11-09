@@ -22,7 +22,7 @@ from deeppavlov.core.common.check_gpu import check_gpu_existence
 
 log = getLogger(__name__)
 
-INITIALIZER = tf.orthogonal_initializer
+INITIALIZER = tf.compat.v1.orthogonal_initializer
 
 
 # INITIALIZER = xavier_initializer
@@ -58,7 +58,7 @@ def stacked_cnn(units: tf.Tensor,
             dilation_rate = 2 ** n_layer
         else:
             dilation_rate = 1
-        units = tf.layers.conv1d(units,
+        units = tf.compat.v1.layers.conv1d(units,
                                  n_hidden,
                                  filter_width,
                                  padding='same',
@@ -67,7 +67,7 @@ def stacked_cnn(units: tf.Tensor,
                                  kernel_regularizer=l2_reg)
         if use_batch_norm:
             assert training_ph is not None
-            units = tf.layers.batch_normalization(units, training=training_ph)
+            units = tf.compat.v1.layers.batch_normalization(units, training=training_ph)
         units = tf.nn.relu(units)
     return units
 
@@ -101,14 +101,14 @@ def dense_convolutional_network(units: tf.Tensor,
             dilation_rate = 2 ** n_layer
         else:
             dilation_rate = 1
-        units = tf.layers.conv1d(total_units,
+        units = tf.compat.v1.layers.conv1d(total_units,
                                  n_filters,
                                  filter_width,
                                  dilation_rate=dilation_rate,
                                  padding='same',
                                  kernel_initializer=INITIALIZER())
         if use_batch_norm:
-            units = tf.layers.batch_normalization(units, training=training_ph)
+            units = tf.compat.v1.layers.batch_normalization(units, training=training_ph)
         units = tf.nn.relu(units)
         units_list.append(units)
     return units
@@ -148,31 +148,31 @@ def bi_rnn(units: tf.Tensor,
                 size and H is number of hidden units
     """
 
-    with tf.variable_scope(name + '_' + cell_type.upper()):
+    with tf.compat.v1.variable_scope(name + '_' + cell_type.upper()):
         if cell_type == 'gru':
-            forward_cell = tf.nn.rnn_cell.GRUCell(n_hidden, kernel_initializer=INITIALIZER())
-            backward_cell = tf.nn.rnn_cell.GRUCell(n_hidden, kernel_initializer=INITIALIZER())
+            forward_cell = tf.compat.v1.nn.rnn_cell.GRUCell(n_hidden, kernel_initializer=INITIALIZER())
+            backward_cell = tf.compat.v1.nn.rnn_cell.GRUCell(n_hidden, kernel_initializer=INITIALIZER())
             if trainable_initial_states:
-                initial_state_fw = tf.tile(tf.get_variable('init_fw_h', [1, n_hidden]), (tf.shape(units)[0], 1))
-                initial_state_bw = tf.tile(tf.get_variable('init_bw_h', [1, n_hidden]), (tf.shape(units)[0], 1))
+                initial_state_fw = tf.tile(tf.compat.v1.get_variable('init_fw_h', [1, n_hidden]), (tf.shape(input=units)[0], 1))
+                initial_state_bw = tf.tile(tf.compat.v1.get_variable('init_bw_h', [1, n_hidden]), (tf.shape(input=units)[0], 1))
             else:
                 initial_state_fw = initial_state_bw = None
         elif cell_type == 'lstm':
-            forward_cell = tf.nn.rnn_cell.LSTMCell(n_hidden, use_peepholes=use_peepholes, initializer=INITIALIZER())
-            backward_cell = tf.nn.rnn_cell.LSTMCell(n_hidden, use_peepholes=use_peepholes, initializer=INITIALIZER())
+            forward_cell = tf.compat.v1.nn.rnn_cell.LSTMCell(n_hidden, use_peepholes=use_peepholes, initializer=INITIALIZER())
+            backward_cell = tf.compat.v1.nn.rnn_cell.LSTMCell(n_hidden, use_peepholes=use_peepholes, initializer=INITIALIZER())
             if trainable_initial_states:
-                initial_state_fw = tf.nn.rnn_cell.LSTMStateTuple(
-                    tf.tile(tf.get_variable('init_fw_c', [1, n_hidden]), (tf.shape(units)[0], 1)),
-                    tf.tile(tf.get_variable('init_fw_h', [1, n_hidden]), (tf.shape(units)[0], 1)))
-                initial_state_bw = tf.nn.rnn_cell.LSTMStateTuple(
-                    tf.tile(tf.get_variable('init_bw_c', [1, n_hidden]), (tf.shape(units)[0], 1)),
-                    tf.tile(tf.get_variable('init_bw_h', [1, n_hidden]), (tf.shape(units)[0], 1)))
+                initial_state_fw = tf.compat.v1.nn.rnn_cell.LSTMStateTuple(
+                    tf.tile(tf.compat.v1.get_variable('init_fw_c', [1, n_hidden]), (tf.shape(input=units)[0], 1)),
+                    tf.tile(tf.compat.v1.get_variable('init_fw_h', [1, n_hidden]), (tf.shape(input=units)[0], 1)))
+                initial_state_bw = tf.compat.v1.nn.rnn_cell.LSTMStateTuple(
+                    tf.tile(tf.compat.v1.get_variable('init_bw_c', [1, n_hidden]), (tf.shape(input=units)[0], 1)),
+                    tf.tile(tf.compat.v1.get_variable('init_bw_h', [1, n_hidden]), (tf.shape(input=units)[0], 1)))
             else:
                 initial_state_fw = initial_state_bw = None
         else:
             raise RuntimeError('cell_type must be either "gru" or "lstm"s')
         (rnn_output_fw, rnn_output_bw), (fw, bw) = \
-            tf.nn.bidirectional_dynamic_rnn(forward_cell,
+            tf.compat.v1.nn.bidirectional_dynamic_rnn(forward_cell,
                                             backward_cell,
                                             units,
                                             dtype=tf.float32,
@@ -182,7 +182,7 @@ def bi_rnn(units: tf.Tensor,
     kernels = [var for var in forward_cell.trainable_variables +
                backward_cell.trainable_variables if 'kernel' in var.name]
     for kernel in kernels:
-        tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES, tf.nn.l2_loss(kernel))
+        tf.compat.v1.add_to_collection(tf.compat.v1.GraphKeys.REGULARIZATION_LOSSES, tf.nn.l2_loss(kernel))
     return (rnn_output_fw, rnn_output_bw), (fw, bw)
 
 
@@ -212,18 +212,18 @@ def stacked_bi_rnn(units: tf.Tensor,
                 size and H is number of hidden units
     """
     for n, n_hidden in enumerate(n_hidden_list):
-        with tf.variable_scope(name + '_' + str(n)):
+        with tf.compat.v1.variable_scope(name + '_' + str(n)):
             if cell_type == 'gru':
-                forward_cell = tf.nn.rnn_cell.GRUCell(n_hidden)
-                backward_cell = tf.nn.rnn_cell.GRUCell(n_hidden)
+                forward_cell = tf.compat.v1.nn.rnn_cell.GRUCell(n_hidden)
+                backward_cell = tf.compat.v1.nn.rnn_cell.GRUCell(n_hidden)
             elif cell_type == 'lstm':
-                forward_cell = tf.nn.rnn_cell.LSTMCell(n_hidden, use_peepholes=use_peepholes)
-                backward_cell = tf.nn.rnn_cell.LSTMCell(n_hidden, use_peepholes=use_peepholes)
+                forward_cell = tf.compat.v1.nn.rnn_cell.LSTMCell(n_hidden, use_peepholes=use_peepholes)
+                backward_cell = tf.compat.v1.nn.rnn_cell.LSTMCell(n_hidden, use_peepholes=use_peepholes)
             else:
                 raise RuntimeError('cell_type must be either gru or lstm')
 
             (rnn_output_fw, rnn_output_bw), (fw, bw) = \
-                tf.nn.bidirectional_dynamic_rnn(forward_cell,
+                tf.compat.v1.nn.bidirectional_dynamic_rnn(forward_cell,
                                                 backward_cell,
                                                 units,
                                                 dtype=tf.float32,
@@ -270,20 +270,20 @@ def u_shape(units: tf.Tensor,
     for n_hidden in n_hidden_list:
         units = stacked_cnn(units, [n_hidden], **conv_net_params)
         units_for_skip_conn.append(units)
-        units = tf.layers.max_pooling1d(units, pool_size=2, strides=2, padding='same')
+        units = tf.compat.v1.layers.max_pooling1d(units, pool_size=2, strides=2, padding='same')
 
     units = stacked_cnn(units, [n_hidden], **conv_net_params)
 
     # Up to the sun light
     for down_step, n_hidden in enumerate(n_hidden_list[::-1]):
         units = tf.expand_dims(units, axis=2)
-        units = tf.layers.conv2d_transpose(units, n_hidden, filter_width, strides=(2, 1), padding='same')
+        units = tf.compat.v1.layers.conv2d_transpose(units, n_hidden, filter_width, strides=(2, 1), padding='same')
         units = tf.squeeze(units, axis=2)
 
         # Skip connection
         skip_units = units_for_skip_conn[-(down_step + 1)]
         if skip_units.get_shape().as_list()[-1] != n_hidden:
-            skip_units = tf.layers.dense(skip_units, n_hidden)
+            skip_units = tf.compat.v1.layers.dense(skip_units, n_hidden)
         units = skip_units + units
 
         units = stacked_cnn(units, [n_hidden], **conv_net_params)
@@ -317,20 +317,20 @@ def stacked_highway_cnn(units: tf.Tensor,
         input_units = units
         # Projection if needed
         if input_units.get_shape().as_list()[-1] != n_hidden:
-            input_units = tf.layers.dense(input_units, n_hidden)
+            input_units = tf.compat.v1.layers.dense(input_units, n_hidden)
         if use_dilation:
             dilation_rate = 2 ** n_layer
         else:
             dilation_rate = 1
-        units = tf.layers.conv1d(units,
+        units = tf.compat.v1.layers.conv1d(units,
                                  n_hidden,
                                  filter_width,
                                  padding='same',
                                  dilation_rate=dilation_rate,
                                  kernel_initializer=INITIALIZER())
         if use_batch_norm:
-            units = tf.layers.batch_normalization(units, training=training_ph)
-        sigmoid_gate = tf.layers.dense(input_units, 1, activation=tf.sigmoid, kernel_initializer=INITIALIZER())
+            units = tf.compat.v1.layers.batch_normalization(units, training=training_ph)
+        sigmoid_gate = tf.compat.v1.layers.dense(input_units, 1, activation=tf.sigmoid, kernel_initializer=INITIALIZER())
         input_units = sigmoid_gate * input_units + (1 - sigmoid_gate) * units
         input_units = tf.nn.relu(input_units)
     units = input_units
@@ -369,7 +369,7 @@ def embedding_layer(token_indices=None,
     else:
         tok_mat = np.random.randn(n_tokens, token_embedding_dim).astype(np.float32) / np.sqrt(token_embedding_dim)
     tok_emb_mat = tf.Variable(tok_mat, name=name, trainable=trainable)
-    embedded_tokens = tf.nn.embedding_lookup(tok_emb_mat, token_indices)
+    embedded_tokens = tf.nn.embedding_lookup(params=tok_emb_mat, ids=token_indices)
     return embedded_tokens
 
 
@@ -406,28 +406,28 @@ def character_embedding_network(char_placeholder: tf.Tensor,
     else:
         char_embedding_dim = emb_mat.shape[1]
     char_emb_var = tf.Variable(emb_mat, trainable=True)
-    with tf.variable_scope('Char_Emb_Network'):
+    with tf.compat.v1.variable_scope('Char_Emb_Network'):
         # Character embedding layer
-        c_emb = tf.nn.embedding_lookup(char_emb_var, char_placeholder)
+        c_emb = tf.nn.embedding_lookup(params=char_emb_var, ids=char_placeholder)
 
         # Character embedding network
         conv_results_list = []
         for filter_width in filter_widths:
-            conv_results_list.append(tf.layers.conv2d(c_emb,
+            conv_results_list.append(tf.compat.v1.layers.conv2d(c_emb,
                                                       char_embedding_dim,
                                                       (1, filter_width),
                                                       padding='same',
                                                       kernel_initializer=INITIALIZER))
         units = tf.concat(conv_results_list, axis=3)
-        units = tf.reduce_max(units, axis=2)
+        units = tf.reduce_max(input_tensor=units, axis=2)
         if highway_on_top:
-            sigmoid_gate = tf.layers.dense(units,
+            sigmoid_gate = tf.compat.v1.layers.dense(units,
                                            1,
                                            activation=tf.sigmoid,
                                            kernel_initializer=INITIALIZER,
                                            kernel_regularizer=tf.nn.l2_loss)
-            deeper_units = tf.layers.dense(units,
-                                           tf.shape(units)[-1],
+            deeper_units = tf.compat.v1.layers.dense(units,
+                                           tf.shape(input=units)[-1],
                                            kernel_initializer=INITIALIZER,
                                            kernel_regularizer=tf.nn.l2_loss)
             units = sigmoid_gate * units + (1 - sigmoid_gate) * deeper_units
@@ -443,7 +443,7 @@ def expand_tile(units, axis):
 
     """
     assert axis in (1, 2)
-    n_time_steps = tf.shape(units)[1]
+    n_time_steps = tf.shape(input=units)[1]
     repetitions = [1, 1, 1, 1]
     repetitions[axis] = n_time_steps
     return tf.tile(tf.expand_dims(units, axis), repetitions)
@@ -470,10 +470,10 @@ def additive_self_attention(units, n_hidden=None, n_output_features=None, activa
     if n_output_features is None:
         n_output_features = n_input_features
     units_pairs = tf.concat([expand_tile(units, 1), expand_tile(units, 2)], 3)
-    query = tf.layers.dense(units_pairs, n_hidden, activation=tf.tanh, kernel_initializer=INITIALIZER())
-    attention = tf.nn.softmax(tf.layers.dense(query, 1), dim=2)
-    attended_units = tf.reduce_sum(attention * expand_tile(units, 1), axis=2)
-    output = tf.layers.dense(attended_units, n_output_features, activation, kernel_initializer=INITIALIZER())
+    query = tf.compat.v1.layers.dense(units_pairs, n_hidden, activation=tf.tanh, kernel_initializer=INITIALIZER())
+    attention = tf.nn.softmax(tf.compat.v1.layers.dense(query, 1), axis=2)
+    attended_units = tf.reduce_sum(input_tensor=attention * expand_tile(units, 1), axis=2)
+    output = tf.compat.v1.layers.dense(attended_units, n_output_features, activation, kernel_initializer=INITIALIZER())
     return output
 
 
@@ -497,12 +497,12 @@ def multiplicative_self_attention(units, n_hidden=None, n_output_features=None, 
         n_hidden = n_input_features
     if n_output_features is None:
         n_output_features = n_input_features
-    queries = tf.layers.dense(expand_tile(units, 1), n_hidden, kernel_initializer=INITIALIZER())
-    keys = tf.layers.dense(expand_tile(units, 2), n_hidden, kernel_initializer=INITIALIZER())
-    scores = tf.reduce_sum(queries * keys, axis=3, keep_dims=True)
-    attention = tf.nn.softmax(scores, dim=2)
-    attended_units = tf.reduce_sum(attention * expand_tile(units, 1), axis=2)
-    output = tf.layers.dense(attended_units, n_output_features, activation, kernel_initializer=INITIALIZER())
+    queries = tf.compat.v1.layers.dense(expand_tile(units, 1), n_hidden, kernel_initializer=INITIALIZER())
+    keys = tf.compat.v1.layers.dense(expand_tile(units, 2), n_hidden, kernel_initializer=INITIALIZER())
+    scores = tf.reduce_sum(input_tensor=queries * keys, axis=3, keepdims=True)
+    attention = tf.nn.softmax(scores, axis=2)
+    attended_units = tf.reduce_sum(input_tensor=attention * expand_tile(units, 1), axis=2)
+    output = tf.compat.v1.layers.dense(attended_units, n_output_features, activation, kernel_initializer=INITIALIZER())
     return output
 
 
@@ -530,25 +530,25 @@ def cudnn_gru(units, n_hidden, n_layers=1, trainable_initial_states=False,
             tf.Tensor with dimensionality [B x T x F]
         h_last - last hidden state, tf.Tensor with dimensionality [B x H]
     """
-    with tf.variable_scope(name, reuse=reuse):
+    with tf.compat.v1.variable_scope(name, reuse=reuse):
         gru = tf.contrib.cudnn_rnn.CudnnGRU(num_layers=n_layers,
                                             num_units=n_hidden)
 
         if trainable_initial_states:
-            init_h = tf.get_variable('init_h', [n_layers, 1, n_hidden])
-            init_h = tf.tile(init_h, (1, tf.shape(units)[0], 1))
+            init_h = tf.compat.v1.get_variable('init_h', [n_layers, 1, n_hidden])
+            init_h = tf.tile(init_h, (1, tf.shape(input=units)[0], 1))
         else:
-            init_h = tf.zeros([n_layers, tf.shape(units)[0], n_hidden])
+            init_h = tf.zeros([n_layers, tf.shape(input=units)[0], n_hidden])
 
         initial_h = input_initial_h or init_h
 
-        h, h_last = gru(tf.transpose(units, (1, 0, 2)), (initial_h,))
-        h = tf.transpose(h, (1, 0, 2))
+        h, h_last = gru(tf.transpose(a=units, perm=(1, 0, 2)), (initial_h,))
+        h = tf.transpose(a=h, perm=(1, 0, 2))
         h_last = tf.squeeze(h_last, axis=0)[-1]  # extract last layer state
 
         # Extract last states if they are provided
         if seq_lengths is not None:
-            indices = tf.stack([tf.range(tf.shape(h)[0]), seq_lengths - 1], axis=1)
+            indices = tf.stack([tf.range(tf.shape(input=h)[0]), seq_lengths - 1], axis=1)
             h_last = tf.gather_nd(h, indices)
 
         return h, h_last
@@ -579,32 +579,32 @@ def cudnn_compatible_gru(units, n_hidden, n_layers=1, trainable_initial_states=F
                 tf.Tensor with dimensionality [B x T x F]
             h_last - last hidden state, tf.Tensor with dimensionality [B x H]
         """
-    with tf.variable_scope(name, reuse=reuse):
+    with tf.compat.v1.variable_scope(name, reuse=reuse):
 
         if trainable_initial_states:
-            init_h = tf.get_variable('init_h', [n_layers, 1, n_hidden])
-            init_h = tf.tile(init_h, (1, tf.shape(units)[0], 1))
+            init_h = tf.compat.v1.get_variable('init_h', [n_layers, 1, n_hidden])
+            init_h = tf.tile(init_h, (1, tf.shape(input=units)[0], 1))
         else:
-            init_h = tf.zeros([n_layers, tf.shape(units)[0], n_hidden])
+            init_h = tf.zeros([n_layers, tf.shape(input=units)[0], n_hidden])
 
         initial_h = input_initial_h or init_h
 
-        with tf.variable_scope('cudnn_gru', reuse=reuse):
+        with tf.compat.v1.variable_scope('cudnn_gru', reuse=reuse):
             def single_cell(): return tf.contrib.cudnn_rnn.CudnnCompatibleGRUCell(n_hidden)
 
-            cell = tf.nn.rnn_cell.MultiRNNCell([single_cell() for _ in range(n_layers)])
+            cell = tf.compat.v1.nn.rnn_cell.MultiRNNCell([single_cell() for _ in range(n_layers)])
 
-            units = tf.transpose(units, (1, 0, 2))
+            units = tf.transpose(a=units, perm=(1, 0, 2))
 
-            h, h_last = tf.nn.dynamic_rnn(cell=cell, inputs=units, time_major=True,
+            h, h_last = tf.compat.v1.nn.dynamic_rnn(cell=cell, inputs=units, time_major=True,
                                           initial_state=tuple(tf.unstack(initial_h, axis=0)))
-            h = tf.transpose(h, (1, 0, 2))
+            h = tf.transpose(a=h, perm=(1, 0, 2))
 
             h_last = h_last[-1]  # h_last is tuple: n_layers x batch_size x n_hidden
 
             # Extract last states if they are provided
             if seq_lengths is not None:
-                indices = tf.stack([tf.range(tf.shape(h)[0]), seq_lengths - 1], axis=1)
+                indices = tf.stack([tf.range(tf.shape(input=h)[0]), seq_lengths - 1], axis=1)
                 h_last = tf.gather_nd(h, indices)
 
             return h, h_last
@@ -656,28 +656,28 @@ def cudnn_lstm(units, n_hidden, n_layers=1, trainable_initial_states=None, seq_l
             c_last - last cell state, tf.Tensor with dimensionality [B x H]
                 where H - number of hidden units
         """
-    with tf.variable_scope(name, reuse=reuse):
+    with tf.compat.v1.variable_scope(name, reuse=reuse):
         lstm = tf.contrib.cudnn_rnn.CudnnLSTM(num_layers=n_layers,
                                               num_units=n_hidden)
         if trainable_initial_states:
-            init_h = tf.get_variable('init_h', [n_layers, 1, n_hidden])
-            init_h = tf.tile(init_h, (1, tf.shape(units)[0], 1))
-            init_c = tf.get_variable('init_c', [n_layers, 1, n_hidden])
-            init_c = tf.tile(init_c, (1, tf.shape(units)[0], 1))
+            init_h = tf.compat.v1.get_variable('init_h', [n_layers, 1, n_hidden])
+            init_h = tf.tile(init_h, (1, tf.shape(input=units)[0], 1))
+            init_c = tf.compat.v1.get_variable('init_c', [n_layers, 1, n_hidden])
+            init_c = tf.tile(init_c, (1, tf.shape(input=units)[0], 1))
         else:
-            init_h = init_c = tf.zeros([n_layers, tf.shape(units)[0], n_hidden])
+            init_h = init_c = tf.zeros([n_layers, tf.shape(input=units)[0], n_hidden])
 
         initial_h = initial_h or init_h
         initial_c = initial_c or init_c
 
-        h, (h_last, c_last) = lstm(tf.transpose(units, (1, 0, 2)), (initial_h, initial_c))
-        h = tf.transpose(h, (1, 0, 2))
+        h, (h_last, c_last) = lstm(tf.transpose(a=units, perm=(1, 0, 2)), (initial_h, initial_c))
+        h = tf.transpose(a=h, perm=(1, 0, 2))
         h_last = h_last[-1]
         c_last = c_last[-1]
 
         # Extract last states if they are provided
         if seq_lengths is not None:
-            indices = tf.stack([tf.range(tf.shape(h)[0]), seq_lengths - 1], axis=1)
+            indices = tf.stack([tf.range(tf.shape(input=h)[0]), seq_lengths - 1], axis=1)
             h_last = tf.gather_nd(h, indices)
 
         return h, (h_last, c_last)
@@ -715,37 +715,37 @@ def cudnn_compatible_lstm(units, n_hidden, n_layers=1, trainable_initial_states=
                 where H - number of hidden units
         """
 
-    with tf.variable_scope(name, reuse=reuse):
+    with tf.compat.v1.variable_scope(name, reuse=reuse):
         if trainable_initial_states:
-            init_h = tf.get_variable('init_h', [n_layers, 1, n_hidden])
-            init_h = tf.tile(init_h, (1, tf.shape(units)[0], 1))
-            init_c = tf.get_variable('init_c', [n_layers, 1, n_hidden])
-            init_c = tf.tile(init_c, (1, tf.shape(units)[0], 1))
+            init_h = tf.compat.v1.get_variable('init_h', [n_layers, 1, n_hidden])
+            init_h = tf.tile(init_h, (1, tf.shape(input=units)[0], 1))
+            init_c = tf.compat.v1.get_variable('init_c', [n_layers, 1, n_hidden])
+            init_c = tf.tile(init_c, (1, tf.shape(input=units)[0], 1))
         else:
-            init_h = init_c = tf.zeros([n_layers, tf.shape(units)[0], n_hidden])
+            init_h = init_c = tf.zeros([n_layers, tf.shape(input=units)[0], n_hidden])
 
         initial_h = initial_h or init_h
         initial_c = initial_c or init_c
 
-        with tf.variable_scope('cudnn_lstm', reuse=reuse):
+        with tf.compat.v1.variable_scope('cudnn_lstm', reuse=reuse):
             def single_cell(): return tf.contrib.cudnn_rnn.CudnnCompatibleLSTMCell(n_hidden)
 
-            cell = tf.nn.rnn_cell.MultiRNNCell([single_cell() for _ in range(n_layers)])
+            cell = tf.compat.v1.nn.rnn_cell.MultiRNNCell([single_cell() for _ in range(n_layers)])
 
-            units = tf.transpose(units, (1, 0, 2))
+            units = tf.transpose(a=units, perm=(1, 0, 2))
 
-            init = tuple([tf.nn.rnn_cell.LSTMStateTuple(ic, ih) for ih, ic in
+            init = tuple([tf.compat.v1.nn.rnn_cell.LSTMStateTuple(ic, ih) for ih, ic in
                           zip(tf.unstack(initial_h, axis=0), tf.unstack(initial_c, axis=0))])
 
-            h, state = tf.nn.dynamic_rnn(cell=cell, inputs=units, time_major=True, initial_state=init)
+            h, state = tf.compat.v1.nn.dynamic_rnn(cell=cell, inputs=units, time_major=True, initial_state=init)
 
-            h = tf.transpose(h, (1, 0, 2))
+            h = tf.transpose(a=h, perm=(1, 0, 2))
             h_last = state[-1].h
             c_last = state[-1].c
 
             # Extract last states if they are provided
             if seq_lengths is not None:
-                indices = tf.stack([tf.range(tf.shape(h)[0]), seq_lengths - 1], axis=1)
+                indices = tf.stack([tf.range(tf.shape(input=h)[0]), seq_lengths - 1], axis=1)
                 h_last = tf.gather_nd(h, indices)
 
             return h, (h_last, c_last)
@@ -797,10 +797,10 @@ def cudnn_bi_gru(units,
             where H - number of hidden units
     """
 
-    with tf.variable_scope(name, reuse=reuse):
+    with tf.compat.v1.variable_scope(name, reuse=reuse):
         if seq_lengths is None:
-            seq_lengths = tf.ones([tf.shape(units)[0]], dtype=tf.int32) * tf.shape(units)[1]
-        with tf.variable_scope('Forward'):
+            seq_lengths = tf.ones([tf.shape(input=units)[0]], dtype=tf.int32) * tf.shape(input=units)[1]
+        with tf.compat.v1.variable_scope('Forward'):
             h_fw, h_last_fw = cudnn_gru_wrapper(units,
                                                 n_hidden,
                                                 n_layers=n_layers,
@@ -808,15 +808,15 @@ def cudnn_bi_gru(units,
                                                 seq_lengths=seq_lengths,
                                                 reuse=reuse)
 
-        with tf.variable_scope('Backward'):
-            reversed_units = tf.reverse_sequence(units, seq_lengths=seq_lengths, seq_dim=1, batch_dim=0)
+        with tf.compat.v1.variable_scope('Backward'):
+            reversed_units = tf.reverse_sequence(input=units, seq_lengths=seq_lengths, seq_axis=1, batch_axis=0)
             h_bw, h_last_bw = cudnn_gru_wrapper(reversed_units,
                                                 n_hidden,
                                                 n_layers=n_layers,
                                                 trainable_initial_states=trainable_initial_states,
                                                 seq_lengths=seq_lengths,
                                                 reuse=reuse)
-            h_bw = tf.reverse_sequence(h_bw, seq_lengths=seq_lengths, seq_dim=1, batch_dim=0)
+            h_bw = tf.reverse_sequence(input=h_bw, seq_lengths=seq_lengths, seq_axis=1, batch_axis=0)
 
     return (h_fw, h_bw), (h_last_fw, h_last_bw)
 
@@ -851,25 +851,25 @@ def cudnn_bi_lstm(units,
         c_last - last cell state, tf.Tensor with dimensionality [B x H * 2]
             where H - number of hidden units
         """
-    with tf.variable_scope(name, reuse=reuse):
+    with tf.compat.v1.variable_scope(name, reuse=reuse):
         if seq_lengths is None:
-            seq_lengths = tf.ones([tf.shape(units)[0]], dtype=tf.int32) * tf.shape(units)[1]
-        with tf.variable_scope('Forward'):
+            seq_lengths = tf.ones([tf.shape(input=units)[0]], dtype=tf.int32) * tf.shape(input=units)[1]
+        with tf.compat.v1.variable_scope('Forward'):
             h_fw, (h_fw_last, c_fw_last) = cudnn_lstm_wrapper(units,
                                                               n_hidden,
                                                               n_layers=n_layers,
                                                               trainable_initial_states=trainable_initial_states,
                                                               seq_lengths=seq_lengths)
 
-        with tf.variable_scope('Backward'):
-            reversed_units = tf.reverse_sequence(units, seq_lengths=seq_lengths, seq_dim=1, batch_dim=0)
+        with tf.compat.v1.variable_scope('Backward'):
+            reversed_units = tf.reverse_sequence(input=units, seq_lengths=seq_lengths, seq_axis=1, batch_axis=0)
             h_bw, (h_bw_last, c_bw_last) = cudnn_lstm_wrapper(reversed_units,
                                                               n_hidden,
                                                               n_layers=n_layers,
                                                               trainable_initial_states=trainable_initial_states,
                                                               seq_lengths=seq_lengths)
 
-            h_bw = tf.reverse_sequence(h_bw, seq_lengths=seq_lengths, seq_dim=1, batch_dim=0)
+            h_bw = tf.reverse_sequence(input=h_bw, seq_lengths=seq_lengths, seq_axis=1, batch_axis=0)
         return (h_fw, h_bw), ((h_fw_last, c_fw_last), (h_bw_last, c_bw_last))
 
 
@@ -905,11 +905,11 @@ def cudnn_stacked_bi_gru(units,
             tf.Tensor with dimensionality [B x T x ((n_hidden * 2) * n_stacks)]
     """
     if seq_lengths is None:
-        seq_lengths = tf.ones([tf.shape(units)[0]], dtype=tf.int32) * tf.shape(units)[1]
+        seq_lengths = tf.ones([tf.shape(input=units)[0]], dtype=tf.int32) * tf.shape(input=units)[1]
 
     outputs = [units]
 
-    with tf.variable_scope(name, reuse=reuse):
+    with tf.compat.v1.variable_scope(name, reuse=reuse):
         for n in range(n_stacks):
 
             if n == 0:
@@ -945,7 +945,7 @@ def variational_dropout(units, keep_prob, fixed_mask_dims=(1,)):
     Returns:
         dropped units tensor
     """
-    units_shape = tf.shape(units)
+    units_shape = tf.shape(input=units)
     noise_shape = [units_shape[n] for n in range(len(units.shape))]
     for dim in fixed_mask_dims:
         noise_shape[dim] = 1

@@ -75,7 +75,7 @@ class DAMNetwork(TensorflowBaseMatchingModel):
                  **kwargs):
 
         self.seed = seed
-        tf.set_random_seed(self.seed)
+        tf.compat.v1.set_random_seed(self.seed)
 
         self.max_sentence_len = max_sequence_length
         self.word_embedding_size = embedding_dim
@@ -90,47 +90,47 @@ class DAMNetwork(TensorflowBaseMatchingModel):
 
         super(DAMNetwork, self).__init__(*args, **kwargs)
 
-        self.sess_config = tf.ConfigProto(allow_soft_placement=True)
+        self.sess_config = tf.compat.v1.ConfigProto(allow_soft_placement=True)
         self.sess_config.gpu_options.allow_growth = True
-        self.sess = tf.Session(config=self.sess_config)
+        self.sess = tf.compat.v1.Session(config=self.sess_config)
         self._init_graph()
-        self.sess.run(tf.global_variables_initializer())
+        self.sess.run(tf.compat.v1.global_variables_initializer())
 
         if self.load_path is not None:
             self.load()
 
     def _init_placeholders(self):
-        with tf.variable_scope('inputs'):
+        with tf.compat.v1.variable_scope('inputs'):
             # Utterances and their lengths
-            self.utterance_ph = tf.placeholder(tf.int32, shape=(None, self.num_context_turns, self.max_sentence_len))
-            self.all_utterance_len_ph = tf.placeholder(tf.int32, shape=(None, self.num_context_turns))
+            self.utterance_ph = tf.compat.v1.placeholder(tf.int32, shape=(None, self.num_context_turns, self.max_sentence_len))
+            self.all_utterance_len_ph = tf.compat.v1.placeholder(tf.int32, shape=(None, self.num_context_turns))
 
             # Responses and their lengths
-            self.response_ph = tf.placeholder(tf.int32, shape=(None, self.max_sentence_len))
-            self.response_len_ph = tf.placeholder(tf.int32, shape=(None,))
+            self.response_ph = tf.compat.v1.placeholder(tf.int32, shape=(None, self.max_sentence_len))
+            self.response_len_ph = tf.compat.v1.placeholder(tf.int32, shape=(None,))
 
             # Labels
-            self.y_true = tf.placeholder(tf.int32, shape=(None,))
+            self.y_true = tf.compat.v1.placeholder(tf.int32, shape=(None,))
 
     def _init_graph(self):
         self._init_placeholders()
 
-        with tf.variable_scope('embedding_matrix_init'):
-            word_embeddings = tf.get_variable("word_embeddings_v",
+        with tf.compat.v1.variable_scope('embedding_matrix_init'):
+            word_embeddings = tf.compat.v1.get_variable("word_embeddings_v",
                                               initializer=tf.constant(self.emb_matrix, dtype=tf.float32),
                                               trainable=self.trainable)
-        with tf.variable_scope('embedding_lookup'):
-            response_embeddings = tf.nn.embedding_lookup(word_embeddings, self.response_ph)
+        with tf.compat.v1.variable_scope('embedding_lookup'):
+            response_embeddings = tf.nn.embedding_lookup(params=word_embeddings, ids=self.response_ph)
 
         Hr = response_embeddings
         if self.is_positional and self.stack_num > 0:
-            with tf.variable_scope('positional'):
+            with tf.compat.v1.variable_scope('positional'):
                 Hr = op.positional_encoding_vector(Hr, max_timescale=10)
 
         Hr_stack = [Hr]
 
         for index in range(self.stack_num):
-            with tf.variable_scope('self_stack_' + str(index)):
+            with tf.compat.v1.variable_scope('self_stack_' + str(index)):
                 Hr = layers.block(
                     Hr, Hr, Hr,
                     Q_lengths=self.response_len_ph, K_lengths=self.response_len_ph, attention_type='dot')
@@ -144,15 +144,15 @@ class DAMNetwork(TensorflowBaseMatchingModel):
         sim_turns = []
         # for every turn_t calculate matching vector
         for turn_t, t_turn_length in zip(list_turn_t, list_turn_length):
-            Hu = tf.nn.embedding_lookup(word_embeddings, turn_t)  # [batch, max_turn_len, emb_size]
+            Hu = tf.nn.embedding_lookup(params=word_embeddings, ids=turn_t)  # [batch, max_turn_len, emb_size]
 
             if self.is_positional and self.stack_num > 0:
-                with tf.variable_scope('positional', reuse=True):
+                with tf.compat.v1.variable_scope('positional', reuse=True):
                     Hu = op.positional_encoding_vector(Hu, max_timescale=10)
             Hu_stack = [Hu]
 
             for index in range(self.stack_num):
-                with tf.variable_scope('self_stack_' + str(index), reuse=True):
+                with tf.compat.v1.variable_scope('self_stack_' + str(index), reuse=True):
                     Hu = layers.block(
                         Hu, Hu, Hu,
                         Q_lengths=t_turn_length, K_lengths=t_turn_length, attention_type='dot')
@@ -163,24 +163,24 @@ class DAMNetwork(TensorflowBaseMatchingModel):
             t_a_r_stack = []
             for index in range(self.stack_num + 1):
 
-                with tf.variable_scope('t_attend_r_' + str(index)):
+                with tf.compat.v1.variable_scope('t_attend_r_' + str(index)):
                     try:
                         t_a_r = layers.block(
                             Hu_stack[index], Hr_stack[index], Hr_stack[index],
                             Q_lengths=t_turn_length, K_lengths=self.response_len_ph, attention_type='dot')
                     except ValueError:
-                        tf.get_variable_scope().reuse_variables()
+                        tf.compat.v1.get_variable_scope().reuse_variables()
                         t_a_r = layers.block(
                             Hu_stack[index], Hr_stack[index], Hr_stack[index],
                             Q_lengths=t_turn_length, K_lengths=self.response_len_ph, attention_type='dot')
 
-                with tf.variable_scope('r_attend_t_' + str(index)):
+                with tf.compat.v1.variable_scope('r_attend_t_' + str(index)):
                     try:
                         r_a_t = layers.block(
                             Hr_stack[index], Hu_stack[index], Hu_stack[index],
                             Q_lengths=self.response_len_ph, K_lengths=t_turn_length, attention_type='dot')
                     except ValueError:
-                        tf.get_variable_scope().reuse_variables()
+                        tf.compat.v1.get_variable_scope().reuse_variables()
                         r_a_t = layers.block(
                             Hr_stack[index], Hu_stack[index], Hu_stack[index],
                             Q_lengths=self.response_len_ph, K_lengths=t_turn_length, attention_type='dot')
@@ -197,7 +197,7 @@ class DAMNetwork(TensorflowBaseMatchingModel):
             # log.info(t_a_r, r_a_t)  # debug
 
             # calculate similarity matrix
-            with tf.variable_scope('similarity'):
+            with tf.compat.v1.variable_scope('similarity'):
                 # sim shape [batch, max_turn_len, max_turn_len, 2*stack_num+1]
                 # divide sqrt(200) to prevent gradient explosion
                 sim = tf.einsum('biks,bjks->bijs', t_a_r, r_a_t) / tf.sqrt(float(self.word_embedding_size))
@@ -207,27 +207,27 @@ class DAMNetwork(TensorflowBaseMatchingModel):
         # cnn and aggregation
         sim = tf.stack(sim_turns, axis=1)
         log.info('sim shape: %s' % sim.shape)
-        with tf.variable_scope('cnn_aggregation'):
+        with tf.compat.v1.variable_scope('cnn_aggregation'):
             final_info = layers.CNN_3d(sim, 32, self.filters2_conv3d)
             # for douban
             # final_info = layers.CNN_3d(sim, 16, 16)
 
         # loss and train
-        with tf.variable_scope('loss'):
+        with tf.compat.v1.variable_scope('loss'):
             self.loss, self.logits = layers.loss(final_info, self.y_true, clip_value=10.)
             self.y_pred = tf.nn.softmax(self.logits, name="y_pred")
-            tf.summary.scalar('loss', self.loss)
+            tf.compat.v1.summary.scalar('loss', self.loss)
 
             self.global_step = tf.Variable(0, trainable=False)
             initial_learning_rate = self.learning_rate
-            self.learning_rate = tf.train.exponential_decay(
+            self.learning_rate = tf.compat.v1.train.exponential_decay(
                 initial_learning_rate,
                 global_step=self.global_step,
                 decay_steps=self.decay_steps,
                 decay_rate=0.9,
                 staircase=True)
 
-            Optimizer = tf.train.AdamOptimizer(self.learning_rate)
+            Optimizer = tf.compat.v1.train.AdamOptimizer(self.learning_rate)
             self.grads_and_vars = Optimizer.compute_gradients(self.loss)
 
             for grad, var in self.grads_and_vars:

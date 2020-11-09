@@ -21,7 +21,7 @@ import tensorflow as tf
 
 from deeppavlov.models.elmo.bilm_model import LanguageModel
 
-tf.logging.set_verbosity(tf.logging.INFO)
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.INFO)
 
 
 def average_gradients(tower_grads, batch_size, options):
@@ -66,7 +66,7 @@ def average_gradients(tower_grads, batch_size, options):
 
             # Average over the 'tower' dimension.
             grad = tf.concat(grads, 0)
-            grad = tf.reduce_mean(grad, 0)
+            grad = tf.reduce_mean(input_tensor=grad, axis=0)
 
         # the Variables are redundant because they are shared
         # across towers. So.. just return the first tower's pointer to
@@ -87,7 +87,7 @@ def summary_gradient_updates(grads, opt, lr):
     # strategy:
     # make a dict of variable name -> [variable, grad, adagrad slot]
     vars_grads = {}
-    for v in tf.trainable_variables():
+    for v in tf.compat.v1.trainable_variables():
         vars_grads[v.name] = [v, None, None]
     for g, v in grads:
         vars_grads[v.name][1] = g
@@ -110,9 +110,9 @@ def summary_gradient_updates(grads, opt, lr):
             if a is not None:
                 updates /= tf.sqrt(a)
 
-        values_norm = tf.sqrt(tf.reduce_sum(v * v)) + 1.0e-7
-        updates_norm = tf.sqrt(tf.reduce_sum(updates * updates))
-        ret.append(tf.summary.scalar('UPDATE/' + vname.replace(":", "_"), updates_norm / values_norm))
+        values_norm = tf.sqrt(tf.reduce_sum(input_tensor=v * v)) + 1.0e-7
+        updates_norm = tf.sqrt(tf.reduce_sum(input_tensor=updates * updates))
+        ret.append(tf.compat.v1.summary.scalar('UPDATE/' + vname.replace(":", "_"), updates_norm / values_norm))
 
     return ret
 
@@ -129,9 +129,9 @@ def _deduplicate_indexed_slices(values, indices):
       `values` slices associated with each unique index.
     """
     unique_indices, new_index_positions = tf.unique(indices)
-    summed_values = tf.unsorted_segment_sum(values,
+    summed_values = tf.math.unsorted_segment_sum(values,
                                             new_index_positions,
-                                            tf.shape(unique_indices)[0])
+                                            tf.shape(input=unique_indices)[0])
     return (summed_values, unique_indices)
 
 
@@ -140,24 +140,24 @@ def clip_by_global_norm_summary(t_list, clip_norm, norm_name, variables):
 
     # compute norms
     # use global_norm with one element to handle IndexedSlices vs dense
-    norms = [tf.global_norm([t]) for t in t_list]
+    norms = [tf.linalg.global_norm([t]) for t in t_list]
 
     # summary ops before clipping
     summary_ops = []
     for ns, v in zip(norms, variables):
         name = 'norm_pre_clip/' + v.name.replace(":", "_")
-        summary_ops.append(tf.summary.scalar(name, ns))
+        summary_ops.append(tf.compat.v1.summary.scalar(name, ns))
 
     # clip
     clipped_t_list, tf_norm = tf.clip_by_global_norm(t_list, clip_norm)
 
     # summary ops after clipping
-    norms_post = [tf.global_norm([t]) for t in clipped_t_list]
+    norms_post = [tf.linalg.global_norm([t]) for t in clipped_t_list]
     for ns, v in zip(norms_post, variables):
         name = 'norm_post_clip/' + v.name.replace(":", "_")
-        summary_ops.append(tf.summary.scalar(name, ns))
+        summary_ops.append(tf.compat.v1.summary.scalar(name, ns))
 
-    summary_ops.append(tf.summary.scalar(norm_name, tf_norm))
+    summary_ops.append(tf.compat.v1.summary.scalar(norm_name, tf_norm))
 
     return clipped_t_list, tf_norm, summary_ops
 
@@ -221,17 +221,17 @@ def dump_weights(tf_save_dir, outfile, options):
 
     ckpt_file = tf.train.latest_checkpoint(tf_save_dir)
 
-    config = tf.ConfigProto(allow_soft_placement=True)
+    config = tf.compat.v1.ConfigProto(allow_soft_placement=True)
     with tf.Graph().as_default():
-        with tf.Session(config=config) as sess:
-            with tf.variable_scope('lm'):
+        with tf.compat.v1.Session(config=config) as sess:
+            with tf.compat.v1.variable_scope('lm'):
                 LanguageModel(options, False)  # Create graph
                 # we use the "Saver" class to load the variables
-                loader = tf.train.Saver()
+                loader = tf.compat.v1.train.Saver()
                 loader.restore(sess, ckpt_file)
 
             with h5py.File(outfile, 'w') as fout:
-                for v in tf.trainable_variables():
+                for v in tf.compat.v1.trainable_variables():
                     if v.name.find('softmax') >= 0:
                         # don't dump these
                         continue

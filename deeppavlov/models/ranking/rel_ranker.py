@@ -59,7 +59,7 @@ class RelRanker(LRScheduledTFModel):
         self.n_classes = n_classes
         self.dropout_keep_prob = dropout_keep_prob
         self.return_probas = return_probas
-        config = tf.ConfigProto()
+        config = tf.compat.v1.ConfigProto()
         config.gpu_options.allow_growth = True
         
         if check_gpu_existence():
@@ -67,53 +67,53 @@ class RelRanker(LRScheduledTFModel):
         else:
             self.GRU = CudnnCompatibleGRU
 
-        self.question_ph = tf.placeholder(tf.float32, [None, None, 300])
-        self.rel_emb_ph = tf.placeholder(tf.float32, [None, None, 300])
+        self.question_ph = tf.compat.v1.placeholder(tf.float32, [None, None, 300])
+        self.rel_emb_ph = tf.compat.v1.placeholder(tf.float32, [None, None, 300])
 
         r_mask_2 = tf.cast(self.rel_emb_ph, tf.bool)
-        r_len_2 = tf.reduce_sum(tf.cast(r_mask_2, tf.int32), axis=2)
+        r_len_2 = tf.reduce_sum(input_tensor=tf.cast(r_mask_2, tf.int32), axis=2)
         r_mask = tf.cast(r_len_2, tf.bool)
-        r_len = tf.reduce_sum(tf.cast(r_mask, tf.int32), axis=1)
-        rel_emb = tf.math.divide_no_nan(tf.reduce_sum(self.rel_emb_ph, axis=1),
+        r_len = tf.reduce_sum(input_tensor=tf.cast(r_mask, tf.int32), axis=1)
+        rel_emb = tf.math.divide_no_nan(tf.reduce_sum(input_tensor=self.rel_emb_ph, axis=1),
                                         tf.cast(tf.expand_dims(r_len, axis=1), tf.float32))
 
-        self.y_ph = tf.placeholder(tf.int32, shape=(None,))
+        self.y_ph = tf.compat.v1.placeholder(tf.int32, shape=(None,))
         self.one_hot_labels = tf.one_hot(self.y_ph, depth=self.n_classes, dtype=tf.float32)
-        self.keep_prob_ph = tf.placeholder_with_default(1.0, shape=[], name='keep_prob_ph')
+        self.keep_prob_ph = tf.compat.v1.placeholder_with_default(1.0, shape=[], name='keep_prob_ph')
 
         q_mask_2 = tf.cast(self.question_ph, tf.bool)
-        q_len_2 = tf.reduce_sum(tf.cast(q_mask_2, tf.int32), axis=2)
+        q_len_2 = tf.reduce_sum(input_tensor=tf.cast(q_mask_2, tf.int32), axis=2)
         q_mask = tf.cast(q_len_2, tf.bool)
-        q_len = tf.reduce_sum(tf.cast(q_mask, tf.int32), axis=1)
+        q_len = tf.reduce_sum(input_tensor=tf.cast(q_mask, tf.int32), axis=1)
 
         question_dr = variational_dropout(self.question_ph, keep_prob=self.keep_prob_ph)
-        b_size = tf.shape(self.question_ph)[0]
+        b_size = tf.shape(input=self.question_ph)[0]
 
-        with tf.variable_scope("question_encode"):
+        with tf.compat.v1.variable_scope("question_encode"):
             rnn = self.GRU(num_layers=2, num_units=75, batch_size=b_size, input_size=300, keep_prob=self.keep_prob_ph)
             q = rnn(question_dr, seq_len=q_len)
 
-        with tf.variable_scope("attention"):
+        with tf.compat.v1.variable_scope("attention"):
             rel_emb_exp = tf.expand_dims(rel_emb, axis=1)
-            dot_products = tf.reduce_sum(tf.multiply(q, rel_emb_exp), axis=2, keep_dims=False)
+            dot_products = tf.reduce_sum(input_tensor=tf.multiply(q, rel_emb_exp), axis=2, keepdims=False)
             s_mask = softmax_mask(dot_products, q_mask)
             att_weights = tf.expand_dims(tf.nn.softmax(s_mask), axis=2)
-            self.s_r = tf.reduce_sum(tf.multiply(att_weights, q), axis=1)
+            self.s_r = tf.reduce_sum(input_tensor=tf.multiply(att_weights, q), axis=1)
 
-            self.logits = tf.layers.dense(tf.multiply(self.s_r, rel_emb), 2, activation=None, use_bias=False)
-            self.y_pred = tf.argmax(self.logits, axis=-1)
+            self.logits = tf.compat.v1.layers.dense(tf.multiply(self.s_r, rel_emb), 2, activation=None, use_bias=False)
+            self.y_pred = tf.argmax(input=self.logits, axis=-1)
 
             loss_tensor = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.one_hot_labels, logits=self.logits)
 
-            self.loss = tf.reduce_mean(loss_tensor)
+            self.loss = tf.reduce_mean(input_tensor=loss_tensor)
             self.train_op = self.get_train_op(self.loss)
 
-        self.sess = tf.Session(config=config)
-        self.sess.run(tf.global_variables_initializer())
+        self.sess = tf.compat.v1.Session(config=config)
+        self.sess.run(tf.compat.v1.global_variables_initializer())
         self.load()
 
     def fill_feed_dict(self, questions_embs: List[np.ndarray], rels_embs: List[np.ndarray], y=None, train=False) -> \
-            Dict[tf.placeholder, List[np.ndarray]]:
+            Dict[tf.compat.v1.placeholder, List[np.ndarray]]:
         questions_embs = np.array(questions_embs)
         rels_embs = np.array(rels_embs)
         feed_dict = {self.question_ph: questions_embs, self.rel_emb_ph: rels_embs}

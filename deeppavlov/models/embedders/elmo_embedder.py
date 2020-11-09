@@ -183,19 +183,19 @@ class ELMoEmbedder(Component, metaclass=TfModelMeta):
         """
         elmo_module = hub.Module(self.spec, trainable=False)
 
-        sess_config = tf.ConfigProto()
+        sess_config = tf.compat.v1.ConfigProto()
         sess_config.gpu_options.allow_growth = True
-        sess = tf.Session(config=sess_config)
+        sess = tf.compat.v1.Session(config=sess_config)
 
-        tokens_ph = tf.placeholder(shape=(None, None), dtype=tf.string, name='tokens')
-        tokens_length_ph = tf.placeholder(shape=(None,), dtype=tf.int32, name='tokens_length')
+        tokens_ph = tf.compat.v1.placeholder(shape=(None, None), dtype=tf.string, name='tokens')
+        tokens_length_ph = tf.compat.v1.placeholder(shape=(None,), dtype=tf.int32, name='tokens_length')
 
         elmo_outputs = elmo_module(inputs={"tokens": tokens_ph,
                                            "sequence_len": tokens_length_ph},
                                    signature="tokens",
                                    as_dict=True)
 
-        sess.run(tf.global_variables_initializer())
+        sess.run(tf.compat.v1.global_variables_initializer())
 
         return elmo_outputs, sess, tokens_ph, tokens_length_ph
 

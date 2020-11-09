@@ -142,9 +142,9 @@ class BertSepRankerModel(LRScheduledTFModel):
         if hidden_keep_prob is not None:
             self.bert_config.hidden_dropout_prob = 1.0 - hidden_keep_prob
 
-        self.sess_config = tf.ConfigProto(allow_soft_placement=True)
+        self.sess_config = tf.compat.v1.ConfigProto(allow_soft_placement=True)
         self.sess_config.gpu_options.allow_growth = True
-        self.sess = tf.Session(config=self.sess_config)
+        self.sess = tf.compat.v1.Session(config=self.sess_config)
 
         self._init_graph()
 
@@ -153,16 +153,16 @@ class BertSepRankerModel(LRScheduledTFModel):
         if pretrained_bert is not None:
             pretrained_bert = str(expand_path(pretrained_bert))
 
-            if tf.train.checkpoint_exists(pretrained_bert) \
-                    and not (self.load_path and tf.train.checkpoint_exists(str(self.load_path.resolve()))):
+            if tf.compat.v1.train.checkpoint_exists(pretrained_bert) \
+                    and not (self.load_path and tf.compat.v1.train.checkpoint_exists(str(self.load_path.resolve()))):
                 logger.info('[initializing model with Bert from {}]'.format(pretrained_bert))
                 # Exclude optimizer and classification variables from saved variables
                 var_list = self._get_saveable_variables(
                     exclude_scopes=('Optimizer', 'learning_rate', 'momentum', 'output_weights', 'output_bias'))
                 assignment_map = self.get_variables_to_restore(var_list, pretrained_bert)
-                tf.train.init_from_checkpoint(pretrained_bert, assignment_map)
+                tf.compat.v1.train.init_from_checkpoint(pretrained_bert, assignment_map)
 
-        self.sess.run(tf.global_variables_initializer())
+        self.sess.run(tf.compat.v1.global_variables_initializer())
 
         if self.load_path is not None:
             self.load()
@@ -189,7 +189,7 @@ class BertSepRankerModel(LRScheduledTFModel):
     def _init_graph(self):
         self._init_placeholders()
 
-        with tf.variable_scope("model"):
+        with tf.compat.v1.variable_scope("model"):
             model_a = BertModel(
                 config=self.bert_config,
                 is_training=self.is_train_ph,
@@ -198,7 +198,7 @@ class BertSepRankerModel(LRScheduledTFModel):
                 token_type_ids=self.token_types_a_ph,
                 use_one_hot_embeddings=False)
 
-        with tf.variable_scope("model", reuse=True):
+        with tf.compat.v1.variable_scope("model", reuse=True):
             model_b = BertModel(
                 config=self.bert_config,
                 is_training=self.is_train_ph,
@@ -210,34 +210,34 @@ class BertSepRankerModel(LRScheduledTFModel):
         output_layer_a = model_a.get_pooled_output()
         output_layer_b = model_b.get_pooled_output()
 
-        with tf.variable_scope("loss"):
-            output_layer_a = tf.nn.dropout(output_layer_a, keep_prob=self.keep_prob_ph)
-            output_layer_b = tf.nn.dropout(output_layer_b, keep_prob=self.keep_prob_ph)
+        with tf.compat.v1.variable_scope("loss"):
+            output_layer_a = tf.nn.dropout(output_layer_a, rate=1 - (self.keep_prob_ph))
+            output_layer_b = tf.nn.dropout(output_layer_b, rate=1 - (self.keep_prob_ph))
             output_layer_a = tf.nn.l2_normalize(output_layer_a, axis=1)
             output_layer_b = tf.nn.l2_normalize(output_layer_b, axis=1)
             embeddings = tf.concat([output_layer_a, output_layer_b], axis=0)
             labels = tf.concat([self.y_ph, self.y_ph], axis=0)
             self.loss = tf.contrib.losses.metric_learning.triplet_semihard_loss(labels, embeddings)
             logits = tf.multiply(output_layer_a, output_layer_b)
-            self.y_probas = tf.reduce_sum(logits, 1)
+            self.y_probas = tf.reduce_sum(input_tensor=logits, axis=1)
             self.pooled_out = output_layer_a
 
     def _init_placeholders(self):
-        self.input_ids_a_ph = tf.placeholder(shape=(None, None), dtype=tf.int32, name='ids_a_ph')
-        self.input_masks_a_ph = tf.placeholder(shape=(None, None), dtype=tf.int32, name='masks_a_ph')
-        self.token_types_a_ph = tf.placeholder(shape=(None, None), dtype=tf.int32, name='token_a_types_ph')
-        self.input_ids_b_ph = tf.placeholder(shape=(None, None), dtype=tf.int32, name='ids_b_ph')
-        self.input_masks_b_ph = tf.placeholder(shape=(None, None), dtype=tf.int32, name='masks_b_ph')
-        self.token_types_b_ph = tf.placeholder(shape=(None, None), dtype=tf.int32, name='token_types_b_ph')
-        self.y_ph = tf.placeholder(shape=(None,), dtype=tf.int32, name='y_ph')
-        self.learning_rate_ph = tf.placeholder_with_default(0.0, shape=[], name='learning_rate_ph')
-        self.keep_prob_ph = tf.placeholder_with_default(1.0, shape=[], name='keep_prob_ph')
-        self.is_train_ph = tf.placeholder_with_default(False, shape=[], name='is_train_ph')
+        self.input_ids_a_ph = tf.compat.v1.placeholder(shape=(None, None), dtype=tf.int32, name='ids_a_ph')
+        self.input_masks_a_ph = tf.compat.v1.placeholder(shape=(None, None), dtype=tf.int32, name='masks_a_ph')
+        self.token_types_a_ph = tf.compat.v1.placeholder(shape=(None, None), dtype=tf.int32, name='token_a_types_ph')
+        self.input_ids_b_ph = tf.compat.v1.placeholder(shape=(None, None), dtype=tf.int32, name='ids_b_ph')
+        self.input_masks_b_ph = tf.compat.v1.placeholder(shape=(None, None), dtype=tf.int32, name='masks_b_ph')
+        self.token_types_b_ph = tf.compat.v1.placeholder(shape=(None, None), dtype=tf.int32, name='token_types_b_ph')
+        self.y_ph = tf.compat.v1.placeholder(shape=(None,), dtype=tf.int32, name='y_ph')
+        self.learning_rate_ph = tf.compat.v1.placeholder_with_default(0.0, shape=[], name='learning_rate_ph')
+        self.keep_prob_ph = tf.compat.v1.placeholder_with_default(1.0, shape=[], name='keep_prob_ph')
+        self.is_train_ph = tf.compat.v1.placeholder_with_default(False, shape=[], name='is_train_ph')
 
     def _init_optimizer(self):
-        with tf.variable_scope('Optimizer'):
-            self.global_step = tf.get_variable('global_step', shape=[], dtype=tf.int32,
-                                               initializer=tf.constant_initializer(0), trainable=False)
+        with tf.compat.v1.variable_scope('Optimizer'):
+            self.global_step = tf.compat.v1.get_variable('global_step', shape=[], dtype=tf.int32,
+                                               initializer=tf.compat.v1.constant_initializer(0), trainable=False)
             # default optimizer for Bert is Adam with fixed L2 regularization
             if self.optimizer is None:
 

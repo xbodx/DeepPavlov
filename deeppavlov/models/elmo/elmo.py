@@ -252,7 +252,7 @@ class ELMo(NNModel):
         self.valid_options = {'batch_size': 256, 'unroll_steps': 1, 'n_gpus': 1}
         self.model_mode = ''
 
-        tf.set_random_seed(seed)
+        tf.compat.v1.set_random_seed(seed)
         np.random.seed(seed)
 
         super().__init__(**kwargs)
@@ -319,23 +319,23 @@ class ELMo(NNModel):
         with graph.as_default():
             with tf.device('/cpu:0'):
                 init_step = 0
-                global_step = tf.get_variable(
+                global_step = tf.compat.v1.get_variable(
                     'global_step', [],
-                    initializer=tf.constant_initializer(init_step), trainable=False)
+                    initializer=tf.compat.v1.constant_initializer(init_step), trainable=False)
                 self.global_step = global_step
                 # set up the optimizer
-                opt = tf.train.AdagradOptimizer(learning_rate=self.options['learning_rate'],
+                opt = tf.compat.v1.train.AdagradOptimizer(learning_rate=self.options['learning_rate'],
                                                 initial_accumulator_value=1.0)
 
                 # calculate the gradients on each GPU
                 tower_grads = []
                 models = []
-                loss = tf.get_variable(
+                loss = tf.compat.v1.get_variable(
                     'train_perplexity', [],
-                    initializer=tf.constant_initializer(0.0), trainable=False)
+                    initializer=tf.compat.v1.constant_initializer(0.0), trainable=False)
                 for k in range(self.options['n_gpus']):
                     with tf.device('/gpu:%d' % k):
-                        with tf.variable_scope('lm', reuse=k > 0):
+                        with tf.compat.v1.variable_scope('lm', reuse=k > 0):
                             # calculate the loss for one model replica and get
                             #   lstm states
                             model = LanguageModel(self.options, True)
@@ -344,7 +344,7 @@ class ELMo(NNModel):
                             models.append(model)
                             # get gradients
                             grads = opt.compute_gradients(
-                                tf.reduce_mean(total_train_loss) * self.options['unroll_steps'],
+                                tf.reduce_mean(input_tensor=total_train_loss) * self.options['unroll_steps'],
                                 aggregation_method=tf.AggregationMethod.EXPERIMENTAL_TREE,
                             )
                             tower_grads.append(grads)
@@ -362,11 +362,11 @@ class ELMo(NNModel):
         return models, train_op, loss, graph
 
     def _init_session(self):
-        sess_config = tf.ConfigProto(allow_soft_placement=True)
+        sess_config = tf.compat.v1.ConfigProto(allow_soft_placement=True)
         sess_config.gpu_options.allow_growth = True
 
-        self.sess = tf.Session(config=sess_config)
-        self.sess.run(tf.global_variables_initializer())
+        self.sess = tf.compat.v1.Session(config=sess_config)
+        self.sess.run(tf.compat.v1.global_variables_initializer())
 
         batch_size = self.options['batch_size']
         unroll_steps = self.options['unroll_steps']
@@ -469,10 +469,10 @@ class ELMo(NNModel):
         path = str(path)
 
         # Check presence of the model files
-        if tf.train.checkpoint_exists(path):
+        if tf.compat.v1.train.checkpoint_exists(path):
             log.info(f'[loading model from {path}]')
             with self.graph.as_default():
-                saver = tf.train.Saver()
+                saver = tf.compat.v1.train.Saver()
                 saver.restore(self.sess, path)
         else:
             log.info(f'[A checkpoint not found in  {path}]')
@@ -491,7 +491,7 @@ class ELMo(NNModel):
 
         log.info(f'[saving model to {path}]')
         with self.graph.as_default():
-            saver = tf.train.Saver()
+            saver = tf.compat.v1.train.Saver()
             saver.save(self.sess, path)
 
     def train_on_batch(self,
@@ -581,7 +581,7 @@ class ELMo(NNModel):
         tf_hub_to_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Check presence of the model files
-        if tf.train.checkpoint_exists(str(from_path)):
+        if tf.compat.v1.train.checkpoint_exists(str(from_path)):
             dump_weights(from_path.parent, weights_to_path, self.permanent_options)
 
             options = copy.deepcopy(self.permanent_options)

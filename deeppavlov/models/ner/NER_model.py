@@ -89,138 +89,138 @@ class HybridNerModel(LRScheduledTFModel):
 
         word2id = word_vocab.t2i
 
-        self._dropout_ph = tf.placeholder_with_default(dropout_keep_prob, shape=[], name='dropout')
-        self.training_ph = tf.placeholder_with_default(False, shape=[], name='is_training')
-        self._y_ph = tf.placeholder(tf.int32, [None, None], name='y_ph')
+        self._dropout_ph = tf.compat.v1.placeholder_with_default(dropout_keep_prob, shape=[], name='dropout')
+        self.training_ph = tf.compat.v1.placeholder_with_default(False, shape=[], name='is_training')
+        self._y_ph = tf.compat.v1.placeholder(tf.int32, [None, None], name='y_ph')
 
         self._xs_ph_list = []
         self._input_features = []
 
         # use for word contextualized bi-lstm, elmo
-        self.real_sent_lengths_ph = tf.placeholder(tf.int32, [None], name="real_sent_lengths")
+        self.real_sent_lengths_ph = tf.compat.v1.placeholder(tf.int32, [None], name="real_sent_lengths")
         self._xs_ph_list.append(self.real_sent_lengths_ph)
 
         # Word emb
-        with tf.variable_scope("word_emb"):
-            word_ids_ph = tf.placeholder(tf.int32, [None, None], name="word_ids")
+        with tf.compat.v1.variable_scope("word_emb"):
+            word_ids_ph = tf.compat.v1.placeholder(tf.int32, [None, None], name="word_ids")
             self._xs_ph_list.append(word_ids_ph)
 
             word_embeddings = self.load_pretrained_word_emb(word_emb_path, word_emb_name, word_dim, word2id)
 
             word_lookup_table = tf.Variable(word_embeddings, dtype=tf.float32, trainable=True, name="word_embeddings")
-            word_emb = tf.nn.embedding_lookup(word_lookup_table, word_ids_ph, name="embedded_word")
+            word_emb = tf.nn.embedding_lookup(params=word_lookup_table, ids=word_ids_ph, name="embedded_word")
             self._input_features.append(word_emb)
 
         # POS feature
         if pos_dim is not None:
-            with tf.variable_scope("pos_emb"):
-                pos_ph = tf.placeholder(tf.int32, [None, None], name="pos_ids")
+            with tf.compat.v1.variable_scope("pos_emb"):
+                pos_ph = tf.compat.v1.placeholder(tf.int32, [None, None], name="pos_ids")
                 self._xs_ph_list.append(pos_ph)
 
-                tf_pos_embeddings = tf.get_variable(name="pos_embeddings",
+                tf_pos_embeddings = tf.compat.v1.get_variable(name="pos_embeddings",
                                                     dtype=tf.float32,
                                                     shape=[pos_vocab_size, pos_dim],
                                                     trainable=True,
                                                     initializer=xavier_initializer())
 
-                embedded_pos = tf.nn.embedding_lookup(tf_pos_embeddings,
-                                                      pos_ph,
+                embedded_pos = tf.nn.embedding_lookup(params=tf_pos_embeddings,
+                                                      ids=pos_ph,
                                                       name="embedded_pos")
                 self._input_features.append(embedded_pos)
 
         # Chunk feature
         if chunk_dim is not None:
-            with tf.variable_scope("chunk_emb"):
-                chunk_ph = tf.placeholder(tf.int32, [None, None], name="chunk_ids")
+            with tf.compat.v1.variable_scope("chunk_emb"):
+                chunk_ph = tf.compat.v1.placeholder(tf.int32, [None, None], name="chunk_ids")
                 self._xs_ph_list.append(chunk_ph)
 
-                tf_chunk_embeddings = tf.get_variable(name="chunk_embeddings",
+                tf_chunk_embeddings = tf.compat.v1.get_variable(name="chunk_embeddings",
                                                       dtype=tf.float32,
                                                       shape=[chunk_vocab_size, chunk_dim],
                                                       trainable=True,
                                                       initializer=xavier_initializer())
 
-                embedded_chunk = tf.nn.embedding_lookup(tf_chunk_embeddings,
-                                                        chunk_ph,
+                embedded_chunk = tf.nn.embedding_lookup(params=tf_chunk_embeddings,
+                                                        ids=chunk_ph,
                                                         name="embedded_chunk")
                 self._input_features.append(embedded_chunk)
 
         # Capitalization feature
         if cap_dim is not None:
-            with tf.variable_scope("cap_emb"):
-                cap_ph = tf.placeholder(tf.int32, [None, None], name="cap_ids")
+            with tf.compat.v1.variable_scope("cap_emb"):
+                cap_ph = tf.compat.v1.placeholder(tf.int32, [None, None], name="cap_ids")
                 self._xs_ph_list.append(cap_ph)
 
-                tf_cap_embeddings = tf.get_variable(name="cap_embeddings",
+                tf_cap_embeddings = tf.compat.v1.get_variable(name="cap_embeddings",
                                                     dtype=tf.float32,
                                                     shape=[cap_vocab_size, cap_dim],
                                                     trainable=True,
                                                     initializer=xavier_initializer())
 
-                embedded_cap = tf.nn.embedding_lookup(tf_cap_embeddings,
-                                                      cap_ph,
+                embedded_cap = tf.nn.embedding_lookup(params=tf_cap_embeddings,
+                                                      ids=cap_ph,
                                                       name="embedded_cap")
                 self._input_features.append(embedded_cap)
 
         # Character feature
         if char_dim is not None:
-            with tf.variable_scope("char_emb"):
-                char_ids_ph = tf.placeholder(tf.int32, [None, None, None], name="char_ids")
+            with tf.compat.v1.variable_scope("char_emb"):
+                char_ids_ph = tf.compat.v1.placeholder(tf.int32, [None, None, None], name="char_ids")
                 self._xs_ph_list.append(char_ids_ph)
 
-                tf_char_embeddings = tf.get_variable(name="char_embeddings",
+                tf_char_embeddings = tf.compat.v1.get_variable(name="char_embeddings",
                                                      dtype=tf.float32,
                                                      shape=[char_vocab_size, char_dim],
                                                      trainable=True,
                                                      initializer=xavier_initializer())
-                embedded_cnn_chars = tf.nn.embedding_lookup(tf_char_embeddings,
-                                                            char_ids_ph,
+                embedded_cnn_chars = tf.nn.embedding_lookup(params=tf_char_embeddings,
+                                                            ids=char_ids_ph,
                                                             name="embedded_cnn_chars")
-                conv1 = tf.layers.conv2d(inputs=embedded_cnn_chars,
+                conv1 = tf.compat.v1.layers.conv2d(inputs=embedded_cnn_chars,
                                          filters=128,
                                          kernel_size=(1, 3),
                                          strides=(1, 1),
                                          padding="same",
                                          name="conv1",
                                          kernel_initializer=xavier_initializer_conv2d())
-                conv2 = tf.layers.conv2d(inputs=conv1,
+                conv2 = tf.compat.v1.layers.conv2d(inputs=conv1,
                                          filters=128,
                                          kernel_size=(1, 3),
                                          strides=(1, 1),
                                          padding="same",
                                          name="conv2",
                                          kernel_initializer=xavier_initializer_conv2d())
-                char_cnn = tf.reduce_max(conv2, axis=2)
+                char_cnn = tf.reduce_max(input_tensor=conv2, axis=2)
 
                 self._input_features.append(char_cnn)
 
         # ELMo
         if elmo_dim is not None:
-            with tf.variable_scope("elmo_emb"):
-                padded_x_tokens_ph = tf.placeholder(tf.string, [None, None], name="padded_x_tokens")
+            with tf.compat.v1.variable_scope("elmo_emb"):
+                padded_x_tokens_ph = tf.compat.v1.placeholder(tf.string, [None, None], name="padded_x_tokens")
                 self._xs_ph_list.append(padded_x_tokens_ph)
 
                 elmo = hub.Module(elmo_hub_path, trainable=True)
                 emb = elmo(inputs={"tokens": padded_x_tokens_ph, "sequence_len": self.real_sent_lengths_ph},
                            signature="tokens", as_dict=True)["elmo"]
-                elmo_emb = tf.layers.dense(emb, elmo_dim, activation=None)
+                elmo_emb = tf.compat.v1.layers.dense(emb, elmo_dim, activation=None)
                 self._input_features.append(elmo_emb)
 
-        features = tf.nn.dropout(tf.concat(self._input_features, axis=2), self._dropout_ph)
+        features = tf.nn.dropout(tf.concat(self._input_features, axis=2), 1 - (self._dropout_ph))
 
-        with tf.variable_scope("bi_lstm_words"):
-            cell_fw = tf.contrib.rnn.LSTMCell(lstm_hidden_size)
-            cell_bw = tf.contrib.rnn.LSTMCell(lstm_hidden_size)
-            (output_fw, output_bw), _ = tf.nn.bidirectional_dynamic_rnn(cell_fw, cell_bw, features,
+        with tf.compat.v1.variable_scope("bi_lstm_words"):
+            cell_fw = tf.compat.v1.nn.rnn_cell.LSTMCell(lstm_hidden_size)
+            cell_bw = tf.compat.v1.nn.rnn_cell.LSTMCell(lstm_hidden_size)
+            (output_fw, output_bw), _ = tf.compat.v1.nn.bidirectional_dynamic_rnn(cell_fw, cell_bw, features,
                                                                         sequence_length=self.real_sent_lengths_ph,
                                                                         dtype=tf.float32)
             self.output = tf.concat([output_fw, output_bw], axis=-1)
 
-            ntime_steps = tf.shape(self.output)[1]
+            ntime_steps = tf.shape(input=self.output)[1]
             self.output = tf.reshape(self.output, [-1, 2 * lstm_hidden_size])
-            layer1 = tf.nn.dropout(tf.layers.dense(inputs=self.output, units=lstm_hidden_size, activation=None,
-                                                   kernel_initializer=xavier_initializer()), self._dropout_ph)
-            pred = tf.layers.dense(inputs=layer1, units=n_tags, activation=None,
+            layer1 = tf.nn.dropout(tf.compat.v1.layers.dense(inputs=self.output, units=lstm_hidden_size, activation=None,
+                                                   kernel_initializer=xavier_initializer()), 1 - (self._dropout_ph))
+            pred = tf.compat.v1.layers.dense(inputs=layer1, units=n_tags, activation=None,
                                    kernel_initializer=xavier_initializer())
             self.logits = tf.reshape(pred, [-1, ntime_steps, n_tags])
 
@@ -228,12 +228,12 @@ class HybridNerModel(LRScheduledTFModel):
                                                                                        self._y_ph,
                                                                                        self.real_sent_lengths_ph)
         # loss and opt
-        with tf.variable_scope("loss_and_opt"):
-            self.loss = tf.reduce_mean(-log_likelihood)
+        with tf.compat.v1.variable_scope("loss_and_opt"):
+            self.loss = tf.reduce_mean(input_tensor=-log_likelihood)
             self.train_op = self.get_train_op(self.loss)
 
-        self.sess = tf.Session()
-        self.sess.run(tf.global_variables_initializer())
+        self.sess = tf.compat.v1.Session()
+        self.sess.run(tf.compat.v1.global_variables_initializer())
         self.load()
 
     def predict(self, xs):

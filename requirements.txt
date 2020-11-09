@@ -3,7 +3,7 @@ Cython
 fastapi
 h5py
 nltk
-numpy
+numpy==1.19.3
 overrides
 pandas
 pytz

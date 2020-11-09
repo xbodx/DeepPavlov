@@ -115,7 +115,7 @@ class KBAttention(base.Layer):
             name = self.dense_name
             if name is not None:
                 name = name + '{:d}'.format(i)
-            layer = tf.layers.Dense(size, name=name, _scope=name, **self.dense_params)
+            layer = tf.compat.v1.layers.Dense(size, name=name, _scope=name, **self.dense_params)
             layer.build(in_shape)
             in_shape = layer.compute_output_shape(in_shape)
 
@@ -125,7 +125,7 @@ class KBAttention(base.Layer):
         # print("last in_shape =", in_shape)
         # in_shape = in_shape[:-2].concatenate(in_shape[-2] + input_shape[-1])
         # print("last in_shape =", in_shape)
-        self.output_layer = tf.layers.Dense(self.units, **self.dense_params)
+        self.output_layer = tf.compat.v1.layers.Dense(self.units, **self.dense_params)
         self.output_layer.build(input_shape)
         # print("build = True")
         self.built = True
@@ -138,7 +138,7 @@ class KBAttention(base.Layer):
         kb_inputs = self.kb_inputs
         for i in range(inputs.shape.ndims - 1):
             kb_inputs = tf.expand_dims(kb_inputs, 0)
-        kb_inputs = tf.tile(kb_inputs, tf.concat((tf.shape(inputs)[:-1], [1, 1]), 0))
+        kb_inputs = tf.tile(kb_inputs, tf.concat((tf.shape(input=inputs)[:-1], [1, 1]), 0))
 
         # Expand kb_mask
         kb_mask = self.kb_mask
@@ -147,7 +147,7 @@ class KBAttention(base.Layer):
         kb_mask = tf.expand_dims(kb_mask, -1)
 
         # Tile inputs
-        kb_size = tf.shape(self.kb_inputs)[0]
+        kb_size = tf.shape(input=self.kb_inputs)[0]
         tiling = tf.concat(([1] * (inputs.shape.ndims - 1), [kb_size], [1]), 0)
         cell_inputs = tf.tile(tf.expand_dims(inputs, -2), tiling)
 

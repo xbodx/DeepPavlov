@@ -45,7 +45,7 @@ def selu(x):
     alpha = 1.6732632423543772848170429916717
     scale = 1.0507009873554804934193349852946
     log.info('use selu')
-    return scale * tf.where(x >= 0.0, x, alpha * tf.nn.elu(x))
+    return scale * tf.compat.v1.where(x >= 0.0, x, alpha * tf.nn.elu(x))
 
 
 def bilinear_sim_4d(x, y, is_nor=True):
@@ -63,11 +63,11 @@ def bilinear_sim_4d(x, y, is_nor=True):
             the shapes of x and y are not match;
             bilinear matrix reuse error.
     '''
-    M = tf.get_variable(
+    M = tf.compat.v1.get_variable(
         name="bilinear_matrix",
         shape=[x.shape[2], y.shape[2], x.shape[3]],
         dtype=tf.float32,
-        initializer=tf.orthogonal_initializer())
+        initializer=tf.compat.v1.orthogonal_initializer())
     sim = tf.einsum('biks,kls,bjls->bijs', x, M, y)
 
     if is_nor:
@@ -91,12 +91,12 @@ def bilinear_sim(x, y, is_nor=True):
             the shapes of x and y are not match;
             bilinear matrix reuse error.
     '''
-    M = tf.get_variable(
+    M = tf.compat.v1.get_variable(
         name="bilinear_matrix",
         shape=[x.shape[-1], y.shape[-1]],
         dtype=tf.float32,
         # initializer=tf.orthogonal_initializer())
-        initializer=tf.keras.initializers.glorot_uniform(seed=42))
+        initializer=tf.compat.v1.keras.initializers.glorot_uniform(seed=42))
     sim = tf.einsum('bik,kl,bjl->bij', x, M, y)
 
     if is_nor:
@@ -145,23 +145,23 @@ def layer_norm(x, axis=None, epsilon=1e-6):
     Raises:
     '''
     log.info('wrong version of layer_norm')
-    scale = tf.get_variable(
+    scale = tf.compat.v1.get_variable(
         name='scale',
         shape=[1],
         dtype=tf.float32,
-        initializer=tf.ones_initializer())
-    bias = tf.get_variable(
+        initializer=tf.compat.v1.ones_initializer())
+    bias = tf.compat.v1.get_variable(
         name='bias',
         shape=[1],
         dtype=tf.float32,
-        initializer=tf.zeros_initializer())
+        initializer=tf.compat.v1.zeros_initializer())
 
     if axis is None:
         axis = [-1]
 
-    mean = tf.reduce_mean(x, axis=axis, keepdims=True)
-    variance = tf.reduce_mean(tf.square(x - mean), axis=axis, keepdims=True)
-    norm = (x - mean) * tf.rsqrt(variance + epsilon)
+    mean = tf.reduce_mean(input_tensor=x, axis=axis, keepdims=True)
+    variance = tf.reduce_mean(input_tensor=tf.square(x - mean), axis=axis, keepdims=True)
+    norm = (x - mean) * tf.math.rsqrt(variance + epsilon)
     return scale * norm + bias
 
 
@@ -181,24 +181,24 @@ def layer_norm_debug(x, axis=None, epsilon=1e-6):
         axis = [-1]
     shape = [x.shape[i] for i in axis]
 
-    scale = tf.get_variable(
+    scale = tf.compat.v1.get_variable(
         name='scale',
         shape=shape,
         dtype=tf.float32,
-        initializer=tf.ones_initializer())
-    bias = tf.get_variable(
+        initializer=tf.compat.v1.ones_initializer())
+    bias = tf.compat.v1.get_variable(
         name='bias',
         shape=shape,
         dtype=tf.float32,
-        initializer=tf.zeros_initializer())
+        initializer=tf.compat.v1.zeros_initializer())
 
-    mean = tf.reduce_mean(x, axis=axis, keepdims=True)
-    variance = tf.reduce_mean(tf.square(x - mean), axis=axis, keepdims=True)
-    norm = (x - mean) * tf.rsqrt(variance + epsilon)
+    mean = tf.reduce_mean(input_tensor=x, axis=axis, keepdims=True)
+    variance = tf.reduce_mean(input_tensor=tf.square(x - mean), axis=axis, keepdims=True)
+    norm = (x - mean) * tf.math.rsqrt(variance + epsilon)
     return scale * norm + bias
 
 
-def dense(x, out_dimension=None, add_bias=True, initializer=tf.orthogonal_initializer()):
+def dense(x, out_dimension=None, add_bias=True, initializer=tf.compat.v1.orthogonal_initializer()):
     '''Add dense connected layer, Wx + b.
 
     Args:
@@ -213,17 +213,17 @@ def dense(x, out_dimension=None, add_bias=True, initializer=tf.orthogonal_initia
     if out_dimension is None:
         out_dimension = x.shape[-1]
 
-    W = tf.get_variable(
+    W = tf.compat.v1.get_variable(
         name='weights',
         shape=[x.shape[-1], out_dimension],
         dtype=tf.float32,
         initializer=initializer)
     if add_bias:
-        bias = tf.get_variable(
+        bias = tf.compat.v1.get_variable(
             name='bias',
             shape=[1],
             dtype=tf.float32,
-            initializer=tf.zeros_initializer())
+            initializer=tf.compat.v1.zeros_initializer())
         return tf.einsum('bik,kj->bij', x, W) + bias
     else:
         return tf.einsum('bik,kj->bij', x, W)
@@ -241,13 +241,13 @@ def matmul_2d(x, out_dimension, drop_prob=None):
 
     Raises:
     '''
-    W = tf.get_variable(
+    W = tf.compat.v1.get_variable(
         name='weights',
         shape=[x.shape[1], out_dimension],
         dtype=tf.float32,
-        initializer=tf.orthogonal_initializer())
+        initializer=tf.compat.v1.orthogonal_initializer())
     if drop_prob is not None:
-        W = tf.nn.dropout(W, drop_prob)
+        W = tf.nn.dropout(W, 1 - (drop_prob))
         log.info('W is dropout')
 
     return tf.matmul(x, W)
@@ -259,11 +259,11 @@ def gauss_positional_encoding_vector(x, role=0, value=0):
     log.info('position: %s' % position)
     log.info('dimension: %s' % dimension)
 
-    _lambda = tf.get_variable(
+    _lambda = tf.compat.v1.get_variable(
         name='lambda',
         shape=[position],
         dtype=tf.float32,
-        initializer=tf.constant_initializer(value))
+        initializer=tf.compat.v1.constant_initializer(value))
     _lambda = tf.expand_dims(_lambda, axis=-1)
 
     mean = [position / 2.0, dimension / 2.0]
@@ -303,22 +303,22 @@ def positional_encoding(x, min_timescale=1.0, max_timescale=1.0e4, value=0):
     '''
     length = x.shape[1]
     channels = x.shape[2]
-    _lambda = tf.get_variable(
+    _lambda = tf.compat.v1.get_variable(
         name='lambda',
         shape=[1],
         dtype=tf.float32,
-        initializer=tf.constant_initializer(value))
+        initializer=tf.compat.v1.constant_initializer(value))
 
-    position = tf.to_float(tf.range(length))
+    position = tf.cast(tf.range(length), dtype=tf.float32)
     num_timescales = channels // 2
     log_timescale_increment = (
             math.log(float(max_timescale) / float(min_timescale)) /
-            (tf.to_float(num_timescales) - 1))
+            (tf.cast(num_timescales, dtype=tf.float32) - 1))
     inv_timescales = min_timescale * tf.exp(
-        tf.to_float(tf.range(num_timescales)) * -log_timescale_increment)
+        tf.cast(tf.range(num_timescales), dtype=tf.float32) * -log_timescale_increment)
     scaled_time = tf.expand_dims(position, 1) * tf.expand_dims(inv_timescales, 0)
     signal = tf.concat([tf.sin(scaled_time), tf.cos(scaled_time)], axis=1)
-    signal = tf.pad(signal, [[0, 0], [0, tf.mod(channels, 2)]])
+    signal = tf.pad(tensor=signal, paddings=[[0, 0], [0, tf.math.floormod(channels, 2)]])
     # signal = tf.reshape(signal, [1, length, channels])
     signal = tf.expand_dims(signal, axis=0)
 
@@ -340,23 +340,23 @@ def positional_encoding_vector(x, min_timescale=1.0, max_timescale=1.0e4, value=
     '''
     length = x.shape[1]
     channels = x.shape[2]
-    _lambda = tf.get_variable(
+    _lambda = tf.compat.v1.get_variable(
         name='lambda',
         shape=[length],
         dtype=tf.float32,
-        initializer=tf.constant_initializer(value))
+        initializer=tf.compat.v1.constant_initializer(value))
     _lambda = tf.expand_dims(_lambda, axis=-1)
 
-    position = tf.to_float(tf.range(length))
+    position = tf.cast(tf.range(length), dtype=tf.float32)
     num_timescales = channels // 2
     log_timescale_increment = (
             math.log(float(max_timescale) / float(min_timescale)) /
-            (tf.to_float(num_timescales) - 1))
+            (tf.cast(num_timescales, dtype=tf.float32) - 1))
     inv_timescales = min_timescale * tf.exp(
-        tf.to_float(tf.range(num_timescales)) * -log_timescale_increment)
+        tf.cast(tf.range(num_timescales), dtype=tf.float32) * -log_timescale_increment)
     scaled_time = tf.expand_dims(position, 1) * tf.expand_dims(inv_timescales, 0)
     signal = tf.concat([tf.sin(scaled_time), tf.cos(scaled_time)], axis=1)
-    signal = tf.pad(signal, [[0, 0], [0, tf.mod(channels, 2)]])
+    signal = tf.pad(tensor=signal, paddings=[[0, 0], [0, tf.math.floormod(channels, 2)]])
 
     signal = tf.multiply(_lambda, signal)
     signal = tf.expand_dims(signal, axis=0)

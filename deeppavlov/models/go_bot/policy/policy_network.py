@@ -75,8 +75,8 @@ class PolicyNetwork(LRScheduledTFModel):
         self._build_graph()
         if self.debug:
             log.debug(f"INSIDE {self.__class__.__name__} init(). build graph done.")
-        self.sess = tf.Session()
-        self.sess.run(tf.global_variables_initializer())
+        self.sess = tf.compat.v1.Session()
+        self.sess.run(tf.compat.v1.global_variables_initializer())
         if self.debug:
             log.debug(f"INSIDE {self.__class__.__name__} init(). "
                       f"Session() initialization and global_variables_initializer() done.")
@@ -228,51 +228,51 @@ class PolicyNetwork(LRScheduledTFModel):
 
         # probabilities normalization : elemwise multiply with action mask
         _logits_exp = tf.multiply(tf.exp(_logits), self._action_mask)
-        _logits_exp_sum = tf.expand_dims(tf.reduce_sum(_logits_exp, -1), -1)
+        _logits_exp_sum = tf.expand_dims(tf.reduce_sum(input_tensor=_logits_exp, axis=-1), -1)
         self._probs = tf.squeeze(_logits_exp / _logits_exp_sum, name='probs')
 
         # loss, train and predict operations
-        self._prediction = tf.argmax(self._probs, axis=-1, name='prediction')
+        self._prediction = tf.argmax(input=self._probs, axis=-1, name='prediction')
 
         # _weights = tf.expand_dims(self._utterance_mask, -1)
         # TODO: try multiplying logits to action_mask
         onehots = tf.one_hot(self._action, self.action_size)
-        _loss_tensor = tf.nn.softmax_cross_entropy_with_logits_v2(
+        _loss_tensor = tf.nn.softmax_cross_entropy_with_logits(
             logits=_logits, labels=onehots
         )
         # multiply with batch utterance mask
         _loss_tensor = tf.multiply(_loss_tensor, self._utterance_mask)
-        self._loss = tf.reduce_mean(_loss_tensor, name='loss')
-        self._loss += self.l2_reg_coef * tf.losses.get_regularization_loss()
+        self._loss = tf.reduce_mean(input_tensor=_loss_tensor, name='loss')
+        self._loss += self.l2_reg_coef * tf.compat.v1.losses.get_regularization_loss()
         self._train_op = self.get_train_op(self._loss)
 
     def _add_placeholders(self) -> None:
-        self._dropout_keep_prob = tf.placeholder_with_default(1.0, shape=[], name='dropout_prob')
+        self._dropout_keep_prob = tf.compat.v1.placeholder_with_default(1.0, shape=[], name='dropout_prob')
 
-        self._features = tf.placeholder(tf.float32, [None, None, self.input_size], name='features')
+        self._features = tf.compat.v1.placeholder(tf.float32, [None, None, self.input_size], name='features')
 
-        self._action = tf.placeholder(tf.int32, [None, None], name='ground_truth_action')
+        self._action = tf.compat.v1.placeholder(tf.int32, [None, None], name='ground_truth_action')
 
-        self._action_mask = tf.placeholder(tf.float32, [None, None, self.action_size], name='action_mask')
+        self._action_mask = tf.compat.v1.placeholder(tf.float32, [None, None, self.action_size], name='action_mask')
 
-        self._utterance_mask = tf.placeholder(tf.float32, shape=[None, None], name='utterance_mask')
+        self._utterance_mask = tf.compat.v1.placeholder(tf.float32, shape=[None, None], name='utterance_mask')
 
-        self._batch_size = tf.shape(self._features)[0]
+        self._batch_size = tf.shape(input=self._features)[0]
 
         zero_state = tf.zeros([self._batch_size, self.hidden_size], dtype=tf.float32)
-        _initial_state_c = tf.placeholder_with_default(zero_state, shape=[None, self.hidden_size])
-        _initial_state_h = tf.placeholder_with_default(zero_state, shape=[None, self.hidden_size])
-        self._initial_state = tf.nn.rnn_cell.LSTMStateTuple(_initial_state_c, _initial_state_h)
+        _initial_state_c = tf.compat.v1.placeholder_with_default(zero_state, shape=[None, self.hidden_size])
+        _initial_state_h = tf.compat.v1.placeholder_with_default(zero_state, shape=[None, self.hidden_size])
+        self._initial_state = tf.compat.v1.nn.rnn_cell.LSTMStateTuple(_initial_state_c, _initial_state_h)
 
         if self.attention_params:
             _emb_context_shape = [None, None, self.attention_params.max_num_tokens,
                                   self.attention_params.token_size]
-            self._emb_context = tf.placeholder(tf.float32, _emb_context_shape, name='emb_context')
-            self._key = tf.placeholder(tf.float32, [None, None, self.attention_params.key_size], name='key')
+            self._emb_context = tf.compat.v1.placeholder(tf.float32, _emb_context_shape, name='emb_context')
+            self._key = tf.compat.v1.placeholder(tf.float32, [None, None, self.attention_params.key_size], name='key')
 
     def _build_body(self) -> Tuple[tf.Tensor, tf.Tensor]:
         # input projection
-        _units = tf.layers.dense(self._features, self.dense_size,
+        _units = tf.compat.v1.layers.dense(self._features, self.dense_size,
                                  kernel_regularizer=tf.nn.l2_loss, kernel_initializer=xav())
 
         if self.attention_params:
@@ -282,25 +282,25 @@ class PolicyNetwork(LRScheduledTFModel):
         _units = tf_layers.variational_dropout(_units, keep_prob=self._dropout_keep_prob)
 
         # recurrent network unit
-        _lstm_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
-        _utter_lengths = tf.cast(tf.reduce_sum(self._utterance_mask, axis=-1), tf.int32)
+        _lstm_cell = tf.compat.v1.nn.rnn_cell.LSTMCell(self.hidden_size)
+        _utter_lengths = tf.cast(tf.reduce_sum(input_tensor=self._utterance_mask, axis=-1), tf.int32)
 
         # _output: [batch_size, max_time, hidden_size]
         # _state: tuple of two [batch_size, hidden_size]
-        _output, _state = tf.nn.dynamic_rnn(_lstm_cell, _units,
+        _output, _state = tf.compat.v1.nn.dynamic_rnn(_lstm_cell, _units,
                                             time_major=False, initial_state=self._initial_state,
                                             sequence_length=_utter_lengths)
 
         _output = tf.reshape(_output, (self._batch_size, -1, self.hidden_size))
         _output = tf_layers.variational_dropout(_output, keep_prob=self._dropout_keep_prob)
         # output projection
-        _logits = tf.layers.dense(_output, self.action_size,
+        _logits = tf.compat.v1.layers.dense(_output, self.action_size,
                                   kernel_regularizer=tf.nn.l2_loss, kernel_initializer=xav(), name='logits')
         return _logits, _state
 
     def _build_attn_body(self):
         attn_scope = f"attention_params/{self.attention_params.type_}"
-        with tf.variable_scope(attn_scope):
+        with tf.compat.v1.variable_scope(attn_scope):
             if self.attention_params.type_ == 'general':
                 _attn_output = am.general_attention(self._key, self._emb_context,
                                                     hidden_size=self.attention_params.hidden_size,
@@ -332,7 +332,7 @@ class PolicyNetwork(LRScheduledTFModel):
         return _attn_output
 
     def train_checkpoint_exists(self):
-        return tf.train.checkpoint_exists(str(self.load_path.resolve()))
+        return tf.compat.v1.train.checkpoint_exists(str(self.load_path.resolve()))
 
     def get_attn_hyperparams(self) -> Optional[GobotAttnParams]:
         attn_hyperparams = None

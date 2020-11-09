@@ -78,25 +78,25 @@ class BertSQuADModel(LRScheduledTFModel):
         if hidden_keep_prob is not None:
             self.bert_config.hidden_dropout_prob = 1.0 - hidden_keep_prob
 
-        self.sess_config = tf.ConfigProto(allow_soft_placement=True)
+        self.sess_config = tf.compat.v1.ConfigProto(allow_soft_placement=True)
         self.sess_config.gpu_options.allow_growth = True
-        self.sess = tf.Session(config=self.sess_config)
+        self.sess = tf.compat.v1.Session(config=self.sess_config)
 
         self._init_graph()
 
         self._init_optimizer()
 
-        self.sess.run(tf.global_variables_initializer())
+        self.sess.run(tf.compat.v1.global_variables_initializer())
 
         if pretrained_bert is not None:
             pretrained_bert = str(expand_path(pretrained_bert))
 
-            if tf.train.checkpoint_exists(pretrained_bert) \
-                    and not (self.load_path and tf.train.checkpoint_exists(str(self.load_path.resolve()))):
+            if tf.compat.v1.train.checkpoint_exists(pretrained_bert) \
+                    and not (self.load_path and tf.compat.v1.train.checkpoint_exists(str(self.load_path.resolve()))):
                 logger.info('[initializing model with Bert from {}]'.format(pretrained_bert))
                 var_list = self._get_saveable_variables(
                     exclude_scopes=('Optimizer', 'learning_rate', 'momentum', 'squad'))
-                saver = tf.train.Saver(var_list)
+                saver = tf.compat.v1.train.Saver(var_list)
                 saver.restore(self.sess, pretrained_bert)
 
         if self.load_path is not None:
@@ -105,7 +105,7 @@ class BertSQuADModel(LRScheduledTFModel):
     def _init_graph(self):
         self._init_placeholders()
 
-        seq_len = tf.shape(self.input_ids_ph)[-1]
+        seq_len = tf.shape(input=self.input_ids_ph)[-1]
         self.y_st = tf.one_hot(self.y_st_ph, depth=seq_len)
         self.y_end = tf.one_hot(self.y_end_ph, depth=seq_len)
 
@@ -119,19 +119,19 @@ class BertSQuADModel(LRScheduledTFModel):
 
         last_layer = self.bert.get_sequence_output()
         hidden_size = last_layer.get_shape().as_list()[-1]
-        bs = tf.shape(last_layer)[0]
+        bs = tf.shape(input=last_layer)[0]
 
-        with tf.variable_scope('squad'):
-            output_weights = tf.get_variable('output_weights', [2, hidden_size],
-                                             initializer=tf.truncated_normal_initializer(stddev=0.02))
-            output_bias = tf.get_variable('output_bias', [2], initializer=tf.zeros_initializer())
+        with tf.compat.v1.variable_scope('squad'):
+            output_weights = tf.compat.v1.get_variable('output_weights', [2, hidden_size],
+                                             initializer=tf.compat.v1.truncated_normal_initializer(stddev=0.02))
+            output_bias = tf.compat.v1.get_variable('output_bias', [2], initializer=tf.compat.v1.zeros_initializer())
 
             last_layer_rs = tf.reshape(last_layer, [-1, hidden_size])
 
             logits = tf.matmul(last_layer_rs, output_weights, transpose_b=True)
             logits = tf.nn.bias_add(logits, output_bias)
             logits = tf.reshape(logits, [bs, -1, 2])
-            logits = tf.transpose(logits, [2, 0, 1])
+            logits = tf.transpose(a=logits, perm=[2, 0, 1])
 
             logits_st, logits_end = tf.unstack(logits, axis=0)
 
@@ -148,41 +148,41 @@ class BertSQuADModel(LRScheduledTFModel):
             outer = tf.matmul(tf.expand_dims(start_probs, axis=2), tf.expand_dims(end_probs, axis=1))
             outer_logits = tf.exp(tf.expand_dims(logits_st, axis=2) + tf.expand_dims(logits_end, axis=1))
 
-            context_max_len = tf.reduce_max(tf.reduce_sum(self.token_types_ph, axis=1))
+            context_max_len = tf.reduce_max(input_tensor=tf.reduce_sum(input_tensor=self.token_types_ph, axis=1))
 
             max_ans_length = tf.cast(tf.minimum(20, context_max_len), tf.int64)
-            outer = tf.matrix_band_part(outer, 0, max_ans_length)
-            outer_logits = tf.matrix_band_part(outer_logits, 0, max_ans_length)
+            outer = tf.linalg.band_part(outer, 0, max_ans_length)
+            outer_logits = tf.linalg.band_part(outer_logits, 0, max_ans_length)
 
             self.yp_score = 1 - tf.nn.softmax(logits_st)[:, 0] * tf.nn.softmax(logits_end)[:, 0]
 
             self.start_probs = start_probs
             self.end_probs = end_probs
-            self.start_pred = tf.argmax(tf.reduce_max(outer, axis=2), axis=1)
-            self.end_pred = tf.argmax(tf.reduce_max(outer, axis=1), axis=1)
-            self.yp_logits = tf.reduce_max(tf.reduce_max(outer_logits, axis=2), axis=1)
+            self.start_pred = tf.argmax(input=tf.reduce_max(input_tensor=outer, axis=2), axis=1)
+            self.end_pred = tf.argmax(input=tf.reduce_max(input_tensor=outer, axis=1), axis=1)
+            self.yp_logits = tf.reduce_max(input_tensor=tf.reduce_max(input_tensor=outer_logits, axis=2), axis=1)
 
-        with tf.variable_scope("loss"):
-            loss_st = tf.nn.softmax_cross_entropy_with_logits(logits=logits_st, labels=self.y_st)
-            loss_end = tf.nn.softmax_cross_entropy_with_logits(logits=logits_end, labels=self.y_end)
-            self.loss = tf.reduce_mean(loss_st + loss_end)
+        with tf.compat.v1.variable_scope("loss"):
+            loss_st = tf.nn.softmax_cross_entropy_with_logits(logits=logits_st, labels=tf.stop_gradient(self.y_st))
+            loss_end = tf.nn.softmax_cross_entropy_with_logits(logits=logits_end, labels=tf.stop_gradient(self.y_end))
+            self.loss = tf.reduce_mean(input_tensor=loss_st + loss_end)
 
     def _init_placeholders(self):
-        self.input_ids_ph = tf.placeholder(shape=(None, None), dtype=tf.int32, name='ids_ph')
-        self.input_masks_ph = tf.placeholder(shape=(None, None), dtype=tf.int32, name='masks_ph')
-        self.token_types_ph = tf.placeholder(shape=(None, None), dtype=tf.int32, name='token_types_ph')
+        self.input_ids_ph = tf.compat.v1.placeholder(shape=(None, None), dtype=tf.int32, name='ids_ph')
+        self.input_masks_ph = tf.compat.v1.placeholder(shape=(None, None), dtype=tf.int32, name='masks_ph')
+        self.token_types_ph = tf.compat.v1.placeholder(shape=(None, None), dtype=tf.int32, name='token_types_ph')
 
-        self.y_st_ph = tf.placeholder(shape=(None,), dtype=tf.int32, name='y_st_ph')
-        self.y_end_ph = tf.placeholder(shape=(None,), dtype=tf.int32, name='y_end_ph')
+        self.y_st_ph = tf.compat.v1.placeholder(shape=(None,), dtype=tf.int32, name='y_st_ph')
+        self.y_end_ph = tf.compat.v1.placeholder(shape=(None,), dtype=tf.int32, name='y_end_ph')
 
-        self.learning_rate_ph = tf.placeholder_with_default(0.0, shape=[], name='learning_rate_ph')
-        self.keep_prob_ph = tf.placeholder_with_default(1.0, shape=[], name='keep_prob_ph')
-        self.is_train_ph = tf.placeholder_with_default(False, shape=[], name='is_train_ph')
+        self.learning_rate_ph = tf.compat.v1.placeholder_with_default(0.0, shape=[], name='learning_rate_ph')
+        self.keep_prob_ph = tf.compat.v1.placeholder_with_default(1.0, shape=[], name='keep_prob_ph')
+        self.is_train_ph = tf.compat.v1.placeholder_with_default(False, shape=[], name='is_train_ph')
 
     def _init_optimizer(self):
-        with tf.variable_scope('Optimizer'):
-            self.global_step = tf.get_variable('global_step', shape=[], dtype=tf.int32,
-                                               initializer=tf.constant_initializer(0), trainable=False)
+        with tf.compat.v1.variable_scope('Optimizer'):
+            self.global_step = tf.compat.v1.get_variable('global_step', shape=[], dtype=tf.int32,
+                                               initializer=tf.compat.v1.constant_initializer(0), trainable=False)
             # default optimizer for Bert is Adam with fixed L2 regularization
             if self.optimizer is None:
 

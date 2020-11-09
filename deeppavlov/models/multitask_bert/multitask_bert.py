@@ -74,8 +74,8 @@ class MTBertTask(ABC):
             self,
             bert_body: BertModel,
             optimizer_params: Dict[str, Union[str, float]],
-            shared_placeholders: Dict[str, tf.placeholder],
-            sess: tf.Session,
+            shared_placeholders: Dict[str, tf.compat.v1.placeholder],
+            sess: tf.compat.v1.Session,
             mode: str,
             get_train_op_func: Callable,
             freeze_embeddings: bool,
@@ -149,12 +149,12 @@ class MTBertTask(ABC):
         return tf.group(bert_train_op, head_train_op)
 
     def _init_optimizer(self) -> None:
-        with tf.variable_scope(self.bert_head_variable_scope):
-            with tf.variable_scope('Optimizer'):
-                self.global_step = tf.get_variable('global_step',
+        with tf.compat.v1.variable_scope(self.bert_head_variable_scope):
+            with tf.compat.v1.variable_scope('Optimizer'):
+                self.global_step = tf.compat.v1.get_variable('global_step',
                                                    shape=[],
                                                    dtype=tf.int32,
-                                                   initializer=tf.constant_initializer(0),
+                                                   initializer=tf.compat.v1.constant_initializer(0),
                                                    trainable=False)
                 # default optimizer for Bert is Adam with fixed L2 regularization
 
@@ -178,7 +178,7 @@ class MTBertTask(ABC):
                                                   optimizer_scope_name='Optimizer')
 
             if self.optimizer_params.get('optimizer') is None:
-                with tf.variable_scope('Optimizer'):
+                with tf.compat.v1.variable_scope('Optimizer'):
                     new_global_step = self.global_step + 1
                     self.train_op = tf.group(self.train_op, [self.global_step.assign(new_global_step)])
 
@@ -217,7 +217,7 @@ class MTBertTask(ABC):
                 'bert_body_learning_rate': kwargs['body_learning_rate']}
 
     @abstractmethod
-    def get_sess_run_infer_args(self, *args) -> Tuple[List[tf.Tensor], Dict[tf.placeholder, Any]]:
+    def get_sess_run_infer_args(self, *args) -> Tuple[List[tf.Tensor], Dict[tf.compat.v1.placeholder, Any]]:
         """Returns fetches and feed_dict for inference. Fetches are lists of tensors and feed_dict is dictionary
         with placeholder values required for fetches computation. The method is used inside ``MultiTaskBert``
         ``__call__`` method.
@@ -239,7 +239,7 @@ class MTBertTask(ABC):
         pass
 
     @abstractmethod
-    def get_sess_run_train_args(self, *args) -> Tuple[List[tf.Tensor], Dict[tf.placeholder, Any]]:
+    def get_sess_run_train_args(self, *args) -> Tuple[List[tf.Tensor], Dict[tf.compat.v1.placeholder, Any]]:
         """Returns fetches and feed_dict for task ``train_on_batch`` method.
 
         Overriding methods take task inputs as positional arguments.
@@ -315,30 +315,30 @@ class MTBertSequenceTaggingTask(MTBertTask):
         self.encoder_layer_ids = encoder_layer_ids
 
     def _init_placeholders(self) -> None:
-        self.y_ph = tf.placeholder(shape=(None, None), dtype=tf.int32, name='y_ph')
-        self.y_masks_ph = tf.placeholder(shape=(None, None),
+        self.y_ph = tf.compat.v1.placeholder(shape=(None, None), dtype=tf.int32, name='y_ph')
+        self.y_masks_ph = tf.compat.v1.placeholder(shape=(None, None),
                                          dtype=tf.int32,
                                          name='y_mask_ph')
-        self.encoder_keep_prob = tf.placeholder_with_default(1.0, shape=[], name='encoder_keep_prob_ph')
+        self.encoder_keep_prob = tf.compat.v1.placeholder_with_default(1.0, shape=[], name='encoder_keep_prob_ph')
 
     def _init_graph(self) -> None:
-        with tf.variable_scope(self.bert_head_variable_scope):
+        with tf.compat.v1.variable_scope(self.bert_head_variable_scope):
             self._init_placeholders()
-            self.seq_lengths = tf.reduce_sum(self.y_masks_ph, axis=1)
+            self.seq_lengths = tf.reduce_sum(input_tensor=self.y_masks_ph, axis=1)
 
-            layer_weights = tf.get_variable('layer_weights_',
+            layer_weights = tf.compat.v1.get_variable('layer_weights_',
                                             shape=len(self.encoder_layer_ids),
-                                            initializer=tf.ones_initializer(),
+                                            initializer=tf.compat.v1.ones_initializer(),
                                             trainable=True)
             layer_mask = tf.ones_like(layer_weights)
-            layer_mask = tf.nn.dropout(layer_mask, self.encoder_keep_prob)
+            layer_mask = tf.nn.dropout(layer_mask, 1 - (self.encoder_keep_prob))
             layer_weights *= layer_mask
             # to prevent zero division
-            mask_sum = tf.maximum(tf.reduce_sum(layer_mask), 1.0)
+            mask_sum = tf.maximum(tf.reduce_sum(input_tensor=layer_mask), 1.0)
             layer_weights = tf.unstack(layer_weights / mask_sum)
             # TODO: may be stack and reduce_sum is faster
             units = sum(w * l for w, l in zip(layer_weights, self.encoder_layers()))
-            units = tf.nn.dropout(units, keep_prob=self.shared_ph['keep_prob'])
+            units = tf.nn.dropout(units, rate=1 - (self.shared_ph['keep_prob']))
             if self.use_birnn:
                 units, _ = bi_rnn(units,
                                   self.birnn_hidden_size,
@@ -347,15 +347,15 @@ class MTBertSequenceTaggingTask(MTBertTask):
                                   name='birnn')
                 units = tf.concat(units, -1)
             # TODO: maybe add one more layer?
-            logits = tf.layers.dense(units, units=self.n_tags, name="output_dense")
+            logits = tf.compat.v1.layers.dense(units, units=self.n_tags, name="output_dense")
 
             self.logits = token_from_subtoken(logits, self.y_masks_ph)
 
             # CRF
             if self.use_crf:
-                transition_params = tf.get_variable('Transition_Params',
+                transition_params = tf.compat.v1.get_variable('Transition_Params',
                                                     shape=[self.n_tags, self.n_tags],
-                                                    initializer=tf.zeros_initializer())
+                                                    initializer=tf.compat.v1.zeros_initializer())
                 log_likelihood, transition_params = \
                     tf.contrib.crf.crf_log_likelihood(self.logits,
                                                       self.y_ph,
@@ -364,16 +364,16 @@ class MTBertSequenceTaggingTask(MTBertTask):
                 loss_tensor = -log_likelihood
                 self._transition_params = transition_params
 
-            self.y_predictions = tf.argmax(self.logits, -1)
+            self.y_predictions = tf.argmax(input=self.logits, axis=-1)
             self.y_probas = tf.nn.softmax(self.logits, axis=2)
 
-            with tf.variable_scope("loss"):
+            with tf.compat.v1.variable_scope("loss"):
                 tag_mask = self._get_tag_mask()
                 y_mask = tf.cast(tag_mask, tf.float32)
                 if self.use_crf:
-                    self.loss = tf.reduce_mean(loss_tensor)
+                    self.loss = tf.reduce_mean(input_tensor=loss_tensor)
                 else:
-                    self.loss = tf.losses.sparse_softmax_cross_entropy(labels=self.y_ph,
+                    self.loss = tf.compat.v1.losses.sparse_softmax_cross_entropy(labels=self.y_ph,
                                                                        logits=self.logits,
                                                                        weights=y_mask)
 
@@ -382,7 +382,7 @@ class MTBertSequenceTaggingTask(MTBertTask):
         Returns: tag_mask,
             a mask that selects positions corresponding to word tokens (not padding and ``CLS``)
         """
-        max_length = tf.reduce_max(self.seq_lengths)
+        max_length = tf.reduce_max(input_tensor=self.seq_lengths)
         one_hot_max_len = tf.one_hot(self.seq_lengths - 1, max_length)
         tag_mask = tf.cumsum(one_hot_max_len[:, ::-1], axis=1)[:, ::-1]
         return tag_mask
@@ -423,7 +423,7 @@ class MTBertSequenceTaggingTask(MTBertTask):
             input_ids: Union[List[List[int]], np.ndarray],
             input_masks: Union[List[List[int]], np.ndarray],
             y_masks: Union[List[List[int]], np.ndarray],
-    ) -> Tuple[List[tf.Tensor], Dict[tf.placeholder, Any]]:
+    ) -> Tuple[List[tf.Tensor], Dict[tf.compat.v1.placeholder, Any]]:
         """Returns fetches and feed_dict for model inference. The method is called from ``MultiTaskBert.__call__``.
 
         Args:
@@ -450,7 +450,7 @@ class MTBertSequenceTaggingTask(MTBertTask):
             input_masks: Union[List[List[int]], np.ndarray],
             y_masks: Union[List[List[int]], np.ndarray],
             y: Union[List[List[int]], np.ndarray],
-            body_learning_rate: float) -> Tuple[List[tf.Tensor], Dict[tf.placeholder, Any]]:
+            body_learning_rate: float) -> Tuple[List[tf.Tensor], Dict[tf.compat.v1.placeholder, Any]]:
         """Returns fetches and feed_dict for model ``train_on_batch`` method.
 
         Args:
@@ -531,26 +531,26 @@ class MTBertClassificationTask(MTBertTask):
 
     def _init_placeholders(self):
         if not self.one_hot_labels:
-            self.y_ph = tf.placeholder(shape=(None,), dtype=tf.int32, name='y_ph')
+            self.y_ph = tf.compat.v1.placeholder(shape=(None,), dtype=tf.int32, name='y_ph')
         else:
-            self.y_ph = tf.placeholder(shape=(None, self.n_classes), dtype=tf.float32, name='y_ph')
+            self.y_ph = tf.compat.v1.placeholder(shape=(None, self.n_classes), dtype=tf.float32, name='y_ph')
 
     def _init_graph(self):
-        with tf.variable_scope(self.bert_head_variable_scope):
+        with tf.compat.v1.variable_scope(self.bert_head_variable_scope):
             self._init_placeholders()
 
             output_layer = self.bert.get_pooled_output()
             hidden_size = output_layer.shape[-1].value
 
-            output_weights = tf.get_variable(
+            output_weights = tf.compat.v1.get_variable(
                 "output_weights", [self.n_classes, hidden_size],
-                initializer=tf.truncated_normal_initializer(stddev=0.02))
+                initializer=tf.compat.v1.truncated_normal_initializer(stddev=0.02))
 
-            output_bias = tf.get_variable(
-                "output_bias", [self.n_classes], initializer=tf.zeros_initializer())
+            output_bias = tf.compat.v1.get_variable(
+                "output_bias", [self.n_classes], initializer=tf.compat.v1.zeros_initializer())
 
-            with tf.variable_scope("loss"):
-                output_layer = tf.nn.dropout(output_layer, keep_prob=self.shared_ph['keep_prob'])
+            with tf.compat.v1.variable_scope("loss"):
+                output_layer = tf.nn.dropout(output_layer, rate=1 - (self.shared_ph['keep_prob']))
                 logits = tf.matmul(output_layer, output_weights, transpose_b=True)
                 logits = tf.nn.bias_add(logits, output_bias)
 
@@ -559,22 +559,22 @@ class MTBertClassificationTask(MTBertTask):
                 else:
                     one_hot_labels = tf.one_hot(self.y_ph, depth=self.n_classes, dtype=tf.float32)
 
-                self.y_predictions = tf.argmax(logits, axis=-1)
+                self.y_predictions = tf.argmax(input=logits, axis=-1)
                 if not self.multilabel:
                     log_probs = tf.nn.log_softmax(logits, axis=-1)
                     self.y_probas = tf.nn.softmax(logits, axis=-1)
-                    per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
-                    self.loss = tf.reduce_mean(per_example_loss)
+                    per_example_loss = -tf.reduce_sum(input_tensor=one_hot_labels * log_probs, axis=-1)
+                    self.loss = tf.reduce_mean(input_tensor=per_example_loss)
                 else:
                     self.y_probas = tf.nn.sigmoid(logits)
                     self.loss = tf.reduce_mean(
-                        tf.nn.sigmoid_cross_entropy_with_logits(labels=one_hot_labels, logits=logits))
+                        input_tensor=tf.nn.sigmoid_cross_entropy_with_logits(labels=one_hot_labels, logits=logits))
 
     def get_sess_run_train_args(
             self,
             features: List[InputFeatures],
             y: Union[List[int], List[List[int]]],
-            body_learning_rate: float) -> Tuple[List[tf.Tensor], Dict[tf.placeholder, Any]]:
+            body_learning_rate: float) -> Tuple[List[tf.Tensor], Dict[tf.compat.v1.placeholder, Any]]:
         """Returns fetches and feed_dict for model ``train_on_batch`` method.
 
         Args:
@@ -595,7 +595,7 @@ class MTBertClassificationTask(MTBertTask):
 
     def get_sess_run_infer_args(
             self,
-            features: List[InputFeatures]) -> Tuple[List[tf.Tensor], Dict[tf.placeholder, Any]]:
+            features: List[InputFeatures]) -> Tuple[List[tf.Tensor], Dict[tf.compat.v1.placeholder, Any]]:
         """Returns fetches and feed_dict for model inference. The method is called from ``MultiTaskBert.__call__``.
 
         Args:
@@ -733,24 +733,24 @@ class MultiTaskBert(LRScheduledTFModel):
         if hidden_keep_prob is not None:
             self.bert_config.hidden_dropout_prob = 1.0 - hidden_keep_prob
 
-        self.sess_config = tf.ConfigProto(allow_soft_placement=True)
+        self.sess_config = tf.compat.v1.ConfigProto(allow_soft_placement=True)
         self.sess_config.gpu_options.allow_growth = True
-        self.sess = tf.Session(config=self.sess_config)
+        self.sess = tf.compat.v1.Session(config=self.sess_config)
 
         self._init_bert_body_graph()
         self.build_tasks()
 
-        self.sess.run(tf.global_variables_initializer())
+        self.sess.run(tf.compat.v1.global_variables_initializer())
 
         if pretrained_bert is not None:
             pretrained_bert = str(expand_path(pretrained_bert))
-            if tf.train.checkpoint_exists(pretrained_bert) \
-                    and not (self.load_path and tf.train.checkpoint_exists(str(self.load_path.resolve()))) \
+            if tf.compat.v1.train.checkpoint_exists(pretrained_bert) \
+                    and not (self.load_path and tf.compat.v1.train.checkpoint_exists(str(self.load_path.resolve()))) \
                     and self.mode == 'train':
                 log.info('[initializing model with Bert from {}]'.format(pretrained_bert))
                 var_list = self._get_saveable_variables(
                     exclude_scopes=('Optimizer', 'learning_rate', 'momentum') + tuple(self.tasks.keys()))
-                saver = tf.train.Saver(var_list)
+                saver = tf.compat.v1.train.Saver(var_list)
                 saver.restore(self.sess, pretrained_bert)
 
         if self.load_path is not None:
@@ -775,16 +775,16 @@ class MultiTaskBert(LRScheduledTFModel):
 
     def _init_shared_placeholders(self) -> None:
         self.shared_ph = {
-            'input_ids': tf.placeholder(shape=(None, None),
+            'input_ids': tf.compat.v1.placeholder(shape=(None, None),
                                         dtype=tf.int32,
                                         name='token_indices_ph'),
-            'input_masks': tf.placeholder(shape=(None, None),
+            'input_masks': tf.compat.v1.placeholder(shape=(None, None),
                                           dtype=tf.int32,
                                           name='token_mask_ph'),
-            'learning_rate': tf.placeholder_with_default(0.0, shape=[], name='learning_rate_ph'),
-            'keep_prob': tf.placeholder_with_default(1.0, shape=[], name='keep_prob_ph'),
-            'is_train': tf.placeholder_with_default(False, shape=[], name='is_train_ph')}
-        self.shared_ph['token_types'] = tf.placeholder_with_default(
+            'learning_rate': tf.compat.v1.placeholder_with_default(0.0, shape=[], name='learning_rate_ph'),
+            'keep_prob': tf.compat.v1.placeholder_with_default(1.0, shape=[], name='keep_prob_ph'),
+            'is_train': tf.compat.v1.placeholder_with_default(False, shape=[], name='is_train_ph')}
+        self.shared_ph['token_types'] = tf.compat.v1.placeholder_with_default(
                 tf.zeros_like(self.shared_ph['input_ids'], dtype=tf.int32),
                 shape=self.shared_ph['input_ids'].shape,
                 name='token_types_ph')
