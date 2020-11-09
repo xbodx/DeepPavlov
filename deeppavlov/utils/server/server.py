@@ -44,7 +44,7 @@ SSLConfig = namedtuple('SSLConfig', ['version', 'keyfile', 'certfile'])
 log = getLogger(__name__)
 dialog_logger = DialogLogger(logger_name='rest_api')
 
-app = FastAPI(__file__)
+app = FastAPI() #app = FastAPI(__file__)
 
 app.add_middleware(
     CORSMiddleware,
