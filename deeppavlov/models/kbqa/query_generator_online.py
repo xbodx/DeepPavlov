@@ -173,8 +173,12 @@ class QueryGeneratorOnline(QueryGeneratorBase):
             candidate_output = [output for output in candidate_output
                 if (all([filter_value in output[filter_var[1:]]["value"] for filter_var, filter_value in property_types.items()])
                 and all([not output[ent[1:]]["value"].startswith("http://www.wikidata.org/value") for ent in answer_ent]))]
-            candidate_outputs += [combs[2][:-1] + [output[var[1:]]["value"] for var in out_vars] + [confidence]
-                                  for output in candidate_output]
+            try:
+                candidate_outputs += [combs[2][:-1] + [output[var[1:]]["value"] for var in out_vars] + [confidence]
+                                      for output in candidate_output]
+            except Exception as e:
+                log.error(str(e))
+
             if return_if_found and candidate_output:
                 return candidate_outputs
         log.debug(f"(query_parser)loop time: {datetime.datetime.now() - start_time}")

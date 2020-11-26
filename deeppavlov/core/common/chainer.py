@@ -223,17 +223,23 @@ class Chainer(Component):
         del args
 
         for (in_keys, in_params), out_params, component in pipe:
-            x = [mem[k] for k in in_params]
-            if in_keys:
-                res = component.__call__(**dict(zip(in_keys, x)))
-            else:
-                res = component.__call__(*x)
-            if len(out_params) == 1:
-                mem[out_params[0]] = res
-            else:
-                mem.update(zip(out_params, res))
-
-        res = [mem[k] for k in targets]
+            try:
+                x = [mem[k] for k in in_params]
+                if in_keys:
+                    res = component.__call__(**dict(zip(in_keys, x)))
+                else:
+                    res = component.__call__(*x)
+                if len(out_params) == 1:
+                    mem[out_params[0]] = res
+                else:
+                    mem.update(zip(out_params, res))
+            except Exception as e:
+                log.error(str(e))
+        # res = [mem[k] for k in targets]
+        res = []
+        for k in targets:
+            if k in mem:
+                res += [mem[k]]
         if len(res) == 1:
             res = res[0]
         return res
